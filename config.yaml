@@ -1,0 +1,11 @@
+app:
+  name: Nova AI Workspace
+  environment: development
+
+api:
+  version: v1
+  prefix: /api/v1
+
+paths:
+  uploads: uploads
+  generated: generated
