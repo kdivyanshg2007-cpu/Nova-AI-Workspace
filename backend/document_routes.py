@@ -17,7 +17,7 @@ def create_document(
             """
             INSERT INTO documents (workspace_id, user_id, title, content)
             VALUES (%s, %s, %s, %s)
-            RETURNING id, workspace_id, user_id, title, content, created_at;
+            RETURNING id, workspace_id, user_id, title, content, created_at, updated_at;
             """,
             (workspace_id, user_id, title, content),
         )
@@ -34,6 +34,7 @@ def create_document(
                 "title": document[3],
                 "content": document[4],
                 "created_at": document[5],
+                "updated_at": document[6],
             },
         }
 
@@ -62,7 +63,14 @@ def get_workspace_documents(
     try:
         cursor.execute(
             """
-            SELECT id, workspace_id, user_id, title, content, created_at
+            SELECT
+                id,
+                workspace_id,
+                user_id,
+                title,
+                content,
+                created_at,
+                updated_at
             FROM documents
             WHERE workspace_id = %s
               AND user_id = %s
@@ -81,6 +89,7 @@ def get_workspace_documents(
                 "title": row[3],
                 "content": row[4],
                 "created_at": row[5],
+                "updated_at": row[6],
             }
             for row in rows
         ]
@@ -117,10 +126,18 @@ def update_document(
             """
             UPDATE documents
             SET title = %s,
-                content = %s
+                content = %s,
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
               AND user_id = %s
-            RETURNING id, workspace_id, user_id, title, content, created_at;
+            RETURNING
+                id,
+                workspace_id,
+                user_id,
+                title,
+                content,
+                created_at,
+                updated_at;
             """,
             (title, content, document_id, user_id),
         )
@@ -145,6 +162,7 @@ def update_document(
                 "title": document[3],
                 "content": document[4],
                 "created_at": document[5],
+                "updated_at": document[6],
             },
         }
 
@@ -223,7 +241,14 @@ def get_document(
     try:
         cursor.execute(
             """
-            SELECT id, workspace_id, user_id, title, content, created_at
+            SELECT
+                id,
+                workspace_id,
+                user_id,
+                title,
+                content,
+                created_at,
+                updated_at
             FROM documents
             WHERE id = %s
               AND user_id = %s;
@@ -248,6 +273,7 @@ def get_document(
                 "title": document[3],
                 "content": document[4],
                 "created_at": document[5],
+                "updated_at": document[6],
             },
         }
 
@@ -277,7 +303,14 @@ def search_documents(
 
         cursor.execute(
             """
-            SELECT id, workspace_id, user_id, title, content, created_at
+            SELECT
+                id,
+                workspace_id,
+                user_id,
+                title,
+                content,
+                created_at,
+                updated_at
             FROM documents
             WHERE workspace_id = %s
               AND user_id = %s
@@ -300,6 +333,7 @@ def search_documents(
                 "title": row[3],
                 "content": row[4],
                 "created_at": row[5],
+                "updated_at": row[6],
             }
             for row in rows
         ]
