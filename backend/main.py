@@ -11,6 +11,8 @@ from document_routes import (
     get_workspace_documents,
     update_document,
     delete_document,
+    get_document,
+    search_documents,
 )
 from dependencies import get_current_user
 
@@ -89,6 +91,33 @@ def list_documents(
 ):
     return get_workspace_documents(
         workspace_id=workspace_id,
+        user_id=current_user["user_id"]
+    )
+
+
+# IMPORTANT:
+# Search route must come BEFORE /{document_id}
+# Otherwise FastAPI treats "search" as document_id.
+@app.get("/api/v1/documents/search")
+def search_workspace_documents(
+    workspace_id: int,
+    query: str,
+    current_user: dict = Depends(get_current_user)
+):
+    return search_documents(
+        workspace_id=workspace_id,
+        user_id=current_user["user_id"],
+        query=query
+    )
+
+
+@app.get("/api/v1/documents/{document_id}")
+def get_single_document(
+    document_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    return get_document(
+        document_id=document_id,
         user_id=current_user["user_id"]
     )
 

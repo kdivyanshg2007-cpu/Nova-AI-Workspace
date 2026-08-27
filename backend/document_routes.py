@@ -209,3 +209,113 @@ def delete_document(
     finally:
         cursor.close()
         connection.close()
+
+
+def get_document(
+    document_id: int,
+    user_id: int
+):
+    """Get a single document owned by the current user."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            """
+            SELECT id, workspace_id, user_id, title, content, created_at
+            FROM documents
+            WHERE id = %s
+              AND user_id = %s;
+            """,
+            (document_id, user_id),
+        )
+
+        document = cursor.fetchone()
+
+        if document is None:
+            return {
+                "success": False,
+                "message": "Document not found or access denied.",
+            }
+
+        return {
+            "success": True,
+            "document": {
+                "id": document[0],
+                "workspace_id": document[1],
+                "user_id": document[2],
+                "title": document[3],
+                "content": document[4],
+                "created_at": document[5],
+            },
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e),
+        }
+
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def search_documents(
+    workspace_id: int,
+    user_id: int,
+    query: str
+):
+    """Search documents by title or content inside a workspace."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+        search_pattern = f"%{query}%"
+
+        cursor.execute(
+            """
+            SELECT id, workspace_id, user_id, title, content, created_at
+            FROM documents
+            WHERE workspace_id = %s
+              AND user_id = %s
+              AND (
+                  title ILIKE %s
+                  OR content ILIKE %s
+              )
+            ORDER BY created_at DESC;
+            """,
+            (workspace_id, user_id, search_pattern, search_pattern),
+        )
+
+        rows = cursor.fetchall()
+
+        documents = [
+            {
+                "id": row[0],
+                "workspace_id": row[1],
+                "user_id": row[2],
+                "title": row[3],
+                "content": row[4],
+                "created_at": row[5],
+            }
+            for row in rows
+        ]
+
+        return {
+            "success": True,
+            "query": query,
+            "documents": documents,
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e),
+        }
+
+    finally:
+        cursor.close()
+        connection.close()
