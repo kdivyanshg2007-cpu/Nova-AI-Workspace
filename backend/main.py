@@ -6,6 +6,12 @@ from logging_config import setup_logging
 from errors import not_found_error
 from auth_routes import signup_user, login_user
 from workspace_routes import create_workspace, get_user_workspaces
+from document_routes import (
+    create_document,
+    get_workspace_documents,
+    update_document,
+    delete_document,
+)
 from dependencies import get_current_user
 
 setup_logging()
@@ -57,5 +63,57 @@ def list_workspaces(
     current_user: dict = Depends(get_current_user)
 ):
     return get_user_workspaces(
+        user_id=current_user["user_id"]
+    )
+
+
+@app.post("/api/v1/documents")
+def create_new_document(
+    workspace_id: int,
+    title: str,
+    content: str,
+    current_user: dict = Depends(get_current_user)
+):
+    return create_document(
+        workspace_id=workspace_id,
+        user_id=current_user["user_id"],
+        title=title,
+        content=content
+    )
+
+
+@app.get("/api/v1/documents")
+def list_documents(
+    workspace_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    return get_workspace_documents(
+        workspace_id=workspace_id,
+        user_id=current_user["user_id"]
+    )
+
+
+@app.put("/api/v1/documents/{document_id}")
+def update_existing_document(
+    document_id: int,
+    title: str,
+    content: str,
+    current_user: dict = Depends(get_current_user)
+):
+    return update_document(
+        document_id=document_id,
+        user_id=current_user["user_id"],
+        title=title,
+        content=content
+    )
+
+
+@app.delete("/api/v1/documents/{document_id}")
+def delete_existing_document(
+    document_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    return delete_document(
+        document_id=document_id,
         user_id=current_user["user_id"]
     )
