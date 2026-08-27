@@ -99,3 +99,113 @@ def get_workspace_documents(
     finally:
         cursor.close()
         connection.close()
+
+
+def update_document(
+    document_id: int,
+    user_id: int,
+    title: str,
+    content: str
+):
+    """Update a document owned by the current user."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            """
+            UPDATE documents
+            SET title = %s,
+                content = %s
+            WHERE id = %s
+              AND user_id = %s
+            RETURNING id, workspace_id, user_id, title, content, created_at;
+            """,
+            (title, content, document_id, user_id),
+        )
+
+        document = cursor.fetchone()
+
+        if document is None:
+            connection.rollback()
+            return {
+                "success": False,
+                "message": "Document not found or access denied.",
+            }
+
+        connection.commit()
+
+        return {
+            "success": True,
+            "document": {
+                "id": document[0],
+                "workspace_id": document[1],
+                "user_id": document[2],
+                "title": document[3],
+                "content": document[4],
+                "created_at": document[5],
+            },
+        }
+
+    except Exception as e:
+        connection.rollback()
+
+        return {
+            "success": False,
+            "message": str(e),
+        }
+
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def delete_document(
+    document_id: int,
+    user_id: int
+):
+    """Delete a document owned by the current user."""
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            """
+            DELETE FROM documents
+            WHERE id = %s
+              AND user_id = %s
+            RETURNING id;
+            """,
+            (document_id, user_id),
+        )
+
+        deleted_document = cursor.fetchone()
+
+        if deleted_document is None:
+            connection.rollback()
+            return {
+                "success": False,
+                "message": "Document not found or access denied.",
+            }
+
+        connection.commit()
+
+        return {
+            "success": True,
+            "message": "Document deleted successfully.",
+            "document_id": deleted_document[0],
+        }
+
+    except Exception as e:
+        connection.rollback()
+
+        return {
+            "success": False,
+            "message": str(e),
+        }
+
+    finally:
+        cursor.close()
+        connection.close()
