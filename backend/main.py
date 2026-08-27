@@ -87,17 +87,18 @@ def create_new_document(
 @app.get("/api/v1/documents")
 def list_documents(
     workspace_id: int,
+    page: int = 1,
+    limit: int = 10,
     current_user: dict = Depends(get_current_user)
 ):
     return get_workspace_documents(
         workspace_id=workspace_id,
-        user_id=current_user["user_id"]
+        user_id=current_user["user_id"],
+        page=page,
+        limit=limit
     )
 
 
-# IMPORTANT:
-# Search route must come BEFORE /{document_id}
-# Otherwise FastAPI treats "search" as document_id.
 @app.get("/api/v1/documents/search")
 def search_workspace_documents(
     workspace_id: int,

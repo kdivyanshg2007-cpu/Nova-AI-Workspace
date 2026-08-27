@@ -53,14 +53,27 @@ def create_document(
 
 def get_workspace_documents(
     workspace_id: int,
-    user_id: int
+    user_id: int,
+    page: int = 1,
+    limit: int = 10
 ):
-    """Get all documents belonging to a workspace."""
+    """Get documents with pagination."""
 
     connection = get_connection()
     cursor = connection.cursor()
 
     try:
+        if page < 1:
+            page = 1
+
+        if limit < 1:
+            limit = 10
+
+        if limit > 100:
+            limit = 100
+
+        offset = (page - 1) * limit
+
         cursor.execute(
             """
             SELECT
@@ -74,9 +87,11 @@ def get_workspace_documents(
             FROM documents
             WHERE workspace_id = %s
               AND user_id = %s
-            ORDER BY created_at DESC;
+            ORDER BY created_at DESC
+            LIMIT %s
+            OFFSET %s;
             """,
-            (workspace_id, user_id),
+            (workspace_id, user_id, limit, offset),
         )
 
         rows = cursor.fetchall()
@@ -96,6 +111,8 @@ def get_workspace_documents(
 
         return {
             "success": True,
+            "page": page,
+            "limit": limit,
             "documents": documents,
         }
 
