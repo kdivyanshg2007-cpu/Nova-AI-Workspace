@@ -1,25 +1,19 @@
-from fastapi import Header, HTTPException
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
 
 from jwt_utils import decode_access_token
 
 
-def get_current_user(authorization: str | None = Header(default=None)):
+security = HTTPBearer()
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
     """Validate the JWT token from the Authorization header."""
 
-    if not authorization:
-        raise HTTPException(
-            status_code=401,
-            detail="Authorization header is missing.",
-        )
-
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization format.",
-        )
-
-    token = authorization.split(" ", 1)[1]
+    token = credentials.credentials
 
     try:
         payload = decode_access_token(token)
