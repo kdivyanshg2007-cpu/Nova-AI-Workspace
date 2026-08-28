@@ -9,6 +9,27 @@ def create_document(
 ):
     """Create a document inside a workspace."""
 
+    if workspace_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid workspace_id."
+        }
+
+    title = title.strip()
+    content = content.strip()
+
+    if not title:
+        return {
+            "success": False,
+            "message": "Document title cannot be empty."
+        }
+
+    if not content:
+        return {
+            "success": False,
+            "message": "Document content cannot be empty."
+        }
+
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -59,21 +80,27 @@ def get_workspace_documents(
 ):
     """Get documents with pagination."""
 
+    if workspace_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid workspace_id."
+        }
+
+    if page < 1:
+        page = 1
+
+    if limit < 1:
+        limit = 10
+
+    if limit > 100:
+        limit = 100
+
+    offset = (page - 1) * limit
+
     connection = get_connection()
     cursor = connection.cursor()
 
     try:
-        if page < 1:
-            page = 1
-
-        if limit < 1:
-            limit = 10
-
-        if limit > 100:
-            limit = 100
-
-        offset = (page - 1) * limit
-
         cursor.execute(
             """
             SELECT
@@ -134,6 +161,27 @@ def update_document(
     content: str
 ):
     """Update a document owned by the current user."""
+
+    if document_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid document_id."
+        }
+
+    title = title.strip()
+    content = content.strip()
+
+    if not title:
+        return {
+            "success": False,
+            "message": "Document title cannot be empty."
+        }
+
+    if not content:
+        return {
+            "success": False,
+            "message": "Document content cannot be empty."
+        }
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -202,6 +250,12 @@ def delete_document(
 ):
     """Delete a document owned by the current user."""
 
+    if document_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid document_id."
+        }
+
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -251,6 +305,12 @@ def get_document(
     user_id: int
 ):
     """Get a single document owned by the current user."""
+
+    if document_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid document_id."
+        }
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -311,6 +371,20 @@ def search_documents(
     query: str
 ):
     """Search documents by title or content inside a workspace."""
+
+    if workspace_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid workspace_id."
+        }
+
+    query = query.strip()
+
+    if not query:
+        return {
+            "success": False,
+            "message": "Search query cannot be empty."
+        }
 
     connection = get_connection()
     cursor = connection.cursor()
