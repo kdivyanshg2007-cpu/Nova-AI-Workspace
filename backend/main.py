@@ -5,7 +5,11 @@ from settings import settings
 from logging_config import setup_logging
 from errors import not_found_error
 from auth_routes import signup_user, login_user
-from workspace_routes import create_workspace, get_user_workspaces
+from workspace_routes import (
+    create_workspace,
+    get_user_workspaces,
+    verify_workspace_ownership,
+)
 from document_routes import (
     create_document,
     get_workspace_documents,
@@ -76,6 +80,15 @@ def create_new_document(
     content: str,
     current_user: dict = Depends(get_current_user)
 ):
+    if not verify_workspace_ownership(
+        workspace_id=workspace_id,
+        user_id=current_user["user_id"]
+    ):
+        return {
+            "success": False,
+            "message": "Workspace not found or access denied."
+        }
+
     return create_document(
         workspace_id=workspace_id,
         user_id=current_user["user_id"],
@@ -91,6 +104,15 @@ def list_documents(
     limit: int = 10,
     current_user: dict = Depends(get_current_user)
 ):
+    if not verify_workspace_ownership(
+        workspace_id=workspace_id,
+        user_id=current_user["user_id"]
+    ):
+        return {
+            "success": False,
+            "message": "Workspace not found or access denied."
+        }
+
     return get_workspace_documents(
         workspace_id=workspace_id,
         user_id=current_user["user_id"],
@@ -105,6 +127,15 @@ def search_workspace_documents(
     query: str,
     current_user: dict = Depends(get_current_user)
 ):
+    if not verify_workspace_ownership(
+        workspace_id=workspace_id,
+        user_id=current_user["user_id"]
+    ):
+        return {
+            "success": False,
+            "message": "Workspace not found or access denied."
+        }
+
     return search_documents(
         workspace_id=workspace_id,
         user_id=current_user["user_id"],
