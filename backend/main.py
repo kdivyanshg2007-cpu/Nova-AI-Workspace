@@ -8,11 +8,16 @@ from fastapi import (
     FastAPI,
     File,
     Form,
+    Request,
     UploadFile,
 )
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from slowapi.extension import _rate_limit_exceeded_handler
 
 from settings import settings
 from logging_config import setup_logging
@@ -123,6 +128,11 @@ app = FastAPI(
 )
 
 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
 # =========================================================
 # DAY 26 — RESEARCH ROUTES
 # =========================================================
@@ -160,7 +170,8 @@ app.add_middleware(
     "/api/v1/health",
     response_model=HealthResponse,
 )
-def health_check():
+@limiter.limit("5/minute")
+def health_check(request: Request):
     return {
         "status": "ok"
     }
