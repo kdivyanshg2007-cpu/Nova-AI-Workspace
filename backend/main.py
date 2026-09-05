@@ -1535,6 +1535,361 @@ def get_data_analysis_chart(
 
 
 # =========================================================
+# WORKSPACE FILES
+# =========================================================
+
+@app.get(
+    "/api/v1/files"
+)
+def list_workspace_files(
+    workspace_id: int,
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    """
+    List files belonging to the authenticated user's workspace.
+    """
+
+    if workspace_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid workspace_id.",
+            "files": [],
+        }
+
+    user_id = current_user["user_id"]
+
+    connection = None
+    cursor = None
+
+    try:
+        if not verify_workspace_ownership(
+            workspace_id=workspace_id,
+            user_id=user_id,
+        ):
+            return {
+                "success": False,
+                "message": (
+                    "Workspace not found or "
+                    "access denied."
+                ),
+                "files": [],
+            }
+
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                id,
+                filename,
+                mime_type,
+                file_size,
+                created_at
+            FROM files
+            WHERE user_id = %s
+              AND workspace_id = %s
+            ORDER BY created_at DESC;
+            """,
+            (
+                user_id,
+                workspace_id,
+            ),
+        )
+
+        rows = cursor.fetchall()
+
+        files = []
+
+        for row in rows:
+            files.append(
+                {
+                    "id": row[0],
+                    "filename": row[1],
+                    "mime_type": row[2],
+                    "file_size": row[3],
+                    "created_at": row[4],
+                }
+            )
+
+        return {
+            "success": True,
+            "count": len(files),
+            "files": files,
+        }
+
+    except Exception as error:
+        print(
+            "LIST WORKSPACE FILES ERROR:",
+            repr(error),
+        )
+
+        return {
+            "success": False,
+            "message": (
+                f"Unable to load files: {str(error)}"
+            ),
+            "files": [],
+        }
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None:
+            connection.close()
+
+
+@app.get(
+    "/api/v1/files/{file_id}/download"
+)
+def download_workspace_file(
+    file_id: int,
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    """
+    Download a file belonging to the authenticated user.
+    """
+
+    if file_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid file_id.",
+        }
+
+    user_id = current_user["user_id"]
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                id,
+                filename,
+                file_path,
+                mime_type,
+                file_size
+            FROM files
+            WHERE id = %s
+              AND user_id = %s;
+            """,
+            (
+                file_id,
+                user_id,
+            ),
+        )
+
+        file_record = cursor.fetchone()
+
+        if file_record is None:
+            return {
+                "success": False,
+                "message": (
+                    "File not found or "
+                    "access denied."
+                ),
+            }
+
+        filename = file_record[1]
+        file_path = file_record[2]
+        mime_type = file_record[3] or (
+            "application/octet-stream"
+        )
+
+    except Exception as error:
+        return {
+            "success": False,
+            "message": (
+                f"Unable to find file: {str(error)}"
+            ),
+        }
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None:
+            connection.close()
+
+    try:
+        source_path = Path(
+            file_path
+        )
+
+        if not source_path.exists():
+            return {
+                "success": False,
+                "message": (
+                    "The requested file "
+                    "could not be found on the server."
+                ),
+            }
+
+        return FileResponse(
+            path=source_path,
+            media_type=mime_type,
+            filename=filename,
+        )
+
+    except Exception as error:
+        print(
+            "FILE DOWNLOAD ERROR:",
+            repr(error),
+        )
+
+        return {
+            "success": False,
+            "message": (
+                f"File download failed: {str(error)}"
+            ),
+        }
+
+
+@app.delete(
+    "/api/v1/files/{file_id}"
+)
+def delete_workspace_file(
+    file_id: int,
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    """
+    Delete a file belonging to the authenticated user.
+    """
+
+    if file_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid file_id.",
+        }
+
+    user_id = current_user["user_id"]
+
+    connection = None
+    cursor = None
+    file_path = None
+    filename = None
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                id,
+                filename,
+                file_path
+            FROM files
+            WHERE id = %s
+              AND user_id = %s;
+            """,
+            (
+                file_id,
+                user_id,
+            ),
+        )
+
+        file_record = cursor.fetchone()
+
+        if file_record is None:
+            return {
+                "success": False,
+                "message": (
+                    "File not found or "
+                    "access denied."
+                ),
+            }
+
+        filename = file_record[1]
+        file_path = file_record[2]
+
+        cursor.execute(
+            """
+            DELETE FROM files
+            WHERE id = %s
+              AND user_id = %s
+            RETURNING id;
+            """,
+            (
+                file_id,
+                user_id,
+            ),
+        )
+
+        deleted_file = cursor.fetchone()
+
+        if deleted_file is None:
+            connection.rollback()
+
+            return {
+                "success": False,
+                "message": "File could not be deleted.",
+            }
+
+        connection.commit()
+
+    except Exception as error:
+        if connection is not None:
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+
+        print(
+            "DELETE WORKSPACE FILE ERROR:",
+            repr(error),
+        )
+
+        return {
+            "success": False,
+            "message": (
+                f"File deletion failed: {str(error)}"
+            ),
+        }
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None:
+            connection.close()
+
+    try:
+        if file_path:
+            stored_path = Path(
+                file_path
+            )
+
+            if stored_path.exists():
+                stored_path.unlink()
+
+    except Exception as error:
+        print(
+            "PHYSICAL FILE DELETE WARNING:",
+            repr(error),
+        )
+
+    return {
+        "success": True,
+        "message": (
+            f"File '{filename}' deleted successfully."
+        ),
+        "file_id": file_id,
+    }
+
+
+# =========================================================
 # DOCUMENT PROCESSING API
 # =========================================================
 

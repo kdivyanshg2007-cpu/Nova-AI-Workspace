@@ -1,7 +1,12 @@
-function Workspace({ workspace, onBack, onOpenDataAnalysis }) {
+function Workspace({
+  workspace,
+  onBack,
+  onOpenDataAnalysis,
+  onOpenNotes,
+  onOpenFiles,
+}) {
   return (
     <div className="min-h-screen bg-gray-100">
-
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">
@@ -24,7 +29,6 @@ function Workspace({ workspace, onBack, onOpenDataAnalysis }) {
 
       <main className="p-6">
         <div className="bg-white border rounded-2xl p-6">
-
           <h2 className="text-2xl font-bold">
             {workspace?.name || "Workspace"} 👋
           </h2>
@@ -34,7 +38,6 @@ function Workspace({ workspace, onBack, onOpenDataAnalysis }) {
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-6">
-
             {/* Chats */}
             <button
               type="button"
@@ -119,7 +122,11 @@ function Workspace({ workspace, onBack, onOpenDataAnalysis }) {
             </button>
 
             {/* Files */}
-            <div className="border rounded-xl p-5">
+            <button
+              type="button"
+              onClick={onOpenFiles}
+              className="border rounded-xl p-5 text-left hover:bg-gray-50 transition cursor-pointer"
+            >
               <h3 className="font-semibold">
                 📁 Files
               </h3>
@@ -127,10 +134,14 @@ function Workspace({ workspace, onBack, onOpenDataAnalysis }) {
               <p className="text-sm text-gray-500 mt-2">
                 Store workspace files
               </p>
-            </div>
+            </button>
 
             {/* Notes */}
-            <div className="border rounded-xl p-5">
+            <button
+              type="button"
+              onClick={onOpenNotes}
+              className="border rounded-xl p-5 text-left hover:bg-gray-50 transition cursor-pointer"
+            >
               <h3 className="font-semibold">
                 📝 Notes
               </h3>
@@ -138,8 +149,7 @@ function Workspace({ workspace, onBack, onOpenDataAnalysis }) {
               <p className="text-sm text-gray-500 mt-2">
                 Keep important notes
               </p>
-            </div>
-
+            </button>
           </div>
         </div>
       </main>

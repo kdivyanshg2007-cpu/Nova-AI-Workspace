@@ -8,6 +8,8 @@ import Dashboard from "./pages/Dashboard";
 import Document from "./pages/Document";
 import Chat from "./pages/Chat";
 import DataAnalysis from "./pages/DataAnalysis";
+import Notes from "./pages/Notes";
+import Files from "./pages/Files";
 
 import Workspace from "../Workspace";
 import CodingWorkspace from "./components/CodingWorkspace";
@@ -23,6 +25,8 @@ function App() {
     if (path === "/coding") return "coding";
     if (path === "/research") return "research";
     if (path === "/data-analysis") return "data-analysis";
+    if (path === "/notes") return "notes";
+    if (path === "/files") return "files";
 
     if (path.startsWith("/shared/")) {
       return "shared-research";
@@ -34,7 +38,8 @@ function App() {
   });
 
   const [selectedWorkspace, setSelectedWorkspace] = useState(() => {
-    const savedWorkspace = localStorage.getItem("nova_workspace");
+    const savedWorkspace =
+      localStorage.getItem("nova_workspace");
 
     if (!savedWorkspace) {
       return null;
@@ -106,10 +111,31 @@ function App() {
 
   const handleOpenDataAnalysis = () => {
     setPage("data-analysis");
+
     window.history.pushState(
       {},
       "",
       "/data-analysis",
+    );
+  };
+
+  const handleOpenNotes = () => {
+    setPage("notes");
+
+    window.history.pushState(
+      {},
+      "",
+      "/notes",
+    );
+  };
+
+  const handleOpenFiles = () => {
+    setPage("files");
+
+    window.history.pushState(
+      {},
+      "",
+      "/files",
     );
   };
 
@@ -156,6 +182,8 @@ function App() {
           workspace={selectedWorkspace}
           onBack={handleBackToDashboard}
           onOpenDataAnalysis={handleOpenDataAnalysis}
+          onOpenNotes={handleOpenNotes}
+          onOpenFiles={handleOpenFiles}
         />
       </div>
     );
@@ -165,6 +193,28 @@ function App() {
     return (
       <div className="nova-route nova-route-app">
         <DataAnalysis
+          workspace={selectedWorkspace}
+          onBack={handleBackToWorkspace}
+        />
+      </div>
+    );
+  }
+
+  if (page === "notes") {
+    return (
+      <div className="nova-route nova-route-app">
+        <Notes
+          workspace={selectedWorkspace}
+          onBack={handleBackToWorkspace}
+        />
+      </div>
+    );
+  }
+
+  if (page === "files") {
+    return (
+      <div className="nova-route nova-route-app">
+        <Files
           workspace={selectedWorkspace}
           onBack={handleBackToWorkspace}
         />
