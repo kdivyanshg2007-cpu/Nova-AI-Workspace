@@ -67,6 +67,7 @@ from memories_routes import router as memories_router
 from search_routes import router as search_router
 from agents.research_pdf_export import ResearchPDFExportService
 from agents.file_export import FileExportService
+from preferences_routes import router as preferences_router
 
 
 # =========================================================
@@ -142,6 +143,7 @@ app.include_router(share_router)
 app.include_router(productivity_router)
 app.include_router(memories_router)
 app.include_router(search_router)
+app.include_router(preferences_router)
 
 
 # =========================================================
