@@ -69,7 +69,11 @@ from agents.research_pdf_export import ResearchPDFExportService
 from agents.file_export import FileExportService
 from preferences_routes import router as preferences_router
 from evaluation_routes import router as evaluation_router
-from usage_routes import router as usage_router
+
+from services.data_analysis_service import (
+    analyze_dataset,
+    generate_analysis_report,
+)
 
 
 # =========================================================
@@ -131,13 +135,20 @@ app = FastAPI(
 )
 
 
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(
+    key_func=get_remote_address
+)
+
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+app.add_exception_handler(
+    RateLimitExceeded,
+    _rate_limit_exceeded_handler
+)
 
 
 # =========================================================
-# DAY 26 — RESEARCH ROUTES
+# ROUTERS
 # =========================================================
 
 app.include_router(research_router)
@@ -147,7 +158,6 @@ app.include_router(memories_router)
 app.include_router(search_router)
 app.include_router(preferences_router)
 app.include_router(evaluation_router)
-app.include_router(usage_router)
 
 
 # =========================================================
@@ -159,8 +169,15 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+
         "http://localhost:5174",
         "http://127.0.0.1:5174",
+
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+
+        "http://localhost:5176",
+        "http://127.0.0.1:5176",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -187,7 +204,9 @@ def health_check(request: Request):
 # TEST ERROR
 # =========================================================
 
-@app.get("/api/v1/test-error")
+@app.get(
+    "/api/v1/test-error"
+)
 def test_error():
     not_found_error(
         "Test resource not found"
@@ -532,6 +551,19 @@ def create_new_chat_message(
             ),
         }
 
+    print(
+        "CHAT ROUTE -> USER:",
+        current_user["user_id"],
+        "| WORKSPACE:",
+        workspace_id,
+        "| MODEL:",
+        settings.GEMINI_MODEL,
+        "| KEY LOADED:",
+        bool(settings.GEMINI_API_KEY),
+        "| KEY LENGTH:",
+        len(settings.GEMINI_API_KEY),
+    )
+
     return create_chat_message(
         workspace_id=workspace_id,
         user_id=current_user["user_id"],
@@ -690,7 +722,9 @@ def list_chat_messages(
 # CHAT FILE UPLOAD + AUTOMATIC PROCESSING
 # =========================================================
 
-UPLOAD_DIR = Path("uploads/chat")
+UPLOAD_DIR = Path(
+    "uploads/chat"
+)
 
 UPLOAD_DIR.mkdir(
     parents=True,
@@ -727,11 +761,6 @@ async def upload_chat_attachment(
     processing_result = None
 
     try:
-
-        # -------------------------------------------------
-        # Verify workspace ownership
-        # -------------------------------------------------
-
         connection = get_connection()
         cursor = connection.cursor()
 
@@ -758,10 +787,6 @@ async def upload_chat_attachment(
                     "access denied."
                 ),
             }
-
-        # -------------------------------------------------
-        # Validate file
-        # -------------------------------------------------
 
         if not file.filename:
             return {
@@ -800,10 +825,6 @@ async def upload_chat_attachment(
                 ),
             }
 
-        # -------------------------------------------------
-        # Create unique filename
-        # -------------------------------------------------
-
         unique_name = (
             f"user_{user_id}_"
             f"workspace_{workspace_id}_"
@@ -812,12 +833,9 @@ async def upload_chat_attachment(
         )
 
         file_path = (
-            UPLOAD_DIR / unique_name
+            UPLOAD_DIR /
+            unique_name
         )
-
-        # -------------------------------------------------
-        # Save physical file
-        # -------------------------------------------------
 
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(
@@ -826,10 +844,6 @@ async def upload_chat_attachment(
             )
 
         file_size = file_path.stat().st_size
-
-        # -------------------------------------------------
-        # Save metadata
-        # -------------------------------------------------
 
         cursor.execute(
             """
@@ -864,10 +878,6 @@ async def upload_chat_attachment(
         file_id = cursor.fetchone()[0]
 
         connection.commit()
-
-        # -------------------------------------------------
-        # Automatically process documents
-        # -------------------------------------------------
 
         if extension in {
             ".pdf",
@@ -906,10 +916,6 @@ async def upload_chat_attachment(
                     repr(processing_error),
                 )
 
-        # -------------------------------------------------
-        # Return result
-        # -------------------------------------------------
-
         return {
             "success": True,
             "message": (
@@ -928,12 +934,16 @@ async def upload_chat_attachment(
                     processing_result is not None
                 ),
                 "page_count": (
-                    processing_result["page_count"]
+                    processing_result[
+                        "page_count"
+                    ]
                     if processing_result
                     else 0
                 ),
                 "chunk_count": (
-                    processing_result["chunk_count"]
+                    processing_result[
+                        "chunk_count"
+                    ]
                     if processing_result
                     else 0
                 ),
@@ -941,7 +951,6 @@ async def upload_chat_attachment(
         }
 
     except Exception as error:
-
         if connection is not None:
             try:
                 connection.rollback()
@@ -968,7 +977,6 @@ async def upload_chat_attachment(
         }
 
     finally:
-
         if cursor is not None:
             cursor.close()
 
@@ -976,6 +984,554 @@ async def upload_chat_attachment(
             connection.close()
 
         await file.close()
+
+
+# =========================================================
+# AI DATA ANALYSIS
+# =========================================================
+
+DATA_ANALYSIS_UPLOAD_DIR = Path(
+    "uploads/data_analysis"
+)
+
+DATA_ANALYSIS_UPLOAD_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+
+@app.post(
+    "/api/v1/data-analysis/analyze"
+)
+async def analyze_data_file(
+    workspace_id: int = Form(...),
+    file: UploadFile = File(...),
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    """
+    Upload and analyze a CSV/XLSX dataset.
+
+    Safety limits:
+    - Maximum file size: 25 MB
+    - Maximum rows: 100,000
+    """
+
+    if workspace_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid workspace_id.",
+        }
+
+    user_id = current_user["user_id"]
+
+    file_path = None
+    connection = None
+    cursor = None
+
+    MAX_FILE_SIZE_MB = 25
+
+    MAX_FILE_SIZE_BYTES = (
+        MAX_FILE_SIZE_MB *
+        1024 *
+        1024
+    )
+
+    try:
+        if not verify_workspace_ownership(
+            workspace_id=workspace_id,
+            user_id=user_id,
+        ):
+            return {
+                "success": False,
+                "message": (
+                    "Workspace not found or "
+                    "access denied."
+                ),
+            }
+
+        if not file.filename:
+            return {
+                "success": False,
+                "message": "No file selected.",
+            }
+
+        safe_name = Path(
+            file.filename
+        ).name
+
+        extension = Path(
+            safe_name
+        ).suffix.lower()
+
+        allowed_extensions = {
+            ".csv",
+            ".xlsx",
+        }
+
+        if extension not in allowed_extensions:
+            return {
+                "success": False,
+                "message": (
+                    "AI Data Analysis supports "
+                    "only CSV and XLSX files."
+                ),
+            }
+
+        unique_name = (
+            f"user_{user_id}_"
+            f"workspace_{workspace_id}_"
+            f"{int(time.time() * 1000)}_"
+            f"{safe_name}"
+        )
+
+        file_path = (
+            DATA_ANALYSIS_UPLOAD_DIR /
+            unique_name
+        )
+
+        with file_path.open("wb") as buffer:
+            shutil.copyfileobj(
+                file.file,
+                buffer,
+            )
+
+        file_size = file_path.stat().st_size
+
+        if file_size > MAX_FILE_SIZE_BYTES:
+            try:
+                file_path.unlink(
+                    missing_ok=True
+                )
+            except Exception:
+                pass
+
+            file_path = None
+
+            return {
+                "success": False,
+                "message": (
+                    f"File is too large. "
+                    f"Maximum allowed size is "
+                    f"{MAX_FILE_SIZE_MB} MB."
+                ),
+            }
+
+        analysis_result = analyze_dataset(
+            file_path=str(file_path)
+        )
+
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO files (
+                user_id,
+                workspace_id,
+                filename,
+                file_path,
+                mime_type,
+                file_size
+            )
+            VALUES (
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s
+            )
+            RETURNING id;
+            """,
+            (
+                user_id,
+                workspace_id,
+                safe_name,
+                str(file_path),
+                file.content_type,
+                file_size,
+            ),
+        )
+
+        file_id = cursor.fetchone()[0]
+
+        connection.commit()
+
+        return {
+            "success": True,
+            "message": (
+                "Dataset analyzed successfully."
+            ),
+            "file_id": file_id,
+            "workspace_id": workspace_id,
+            "analysis": analysis_result,
+        }
+
+    except FileNotFoundError as error:
+        if connection is not None:
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+
+        if file_path is not None:
+            try:
+                if file_path.exists():
+                    file_path.unlink()
+            except Exception:
+                pass
+
+        return {
+            "success": False,
+            "message": str(error),
+        }
+
+    except ValueError as error:
+        if connection is not None:
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+
+        if file_path is not None:
+            try:
+                if file_path.exists():
+                    file_path.unlink()
+            except Exception:
+                pass
+
+        return {
+            "success": False,
+            "message": str(error),
+        }
+
+    except Exception as error:
+        if connection is not None:
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+
+        if file_path is not None:
+            try:
+                if file_path.exists():
+                    file_path.unlink()
+            except Exception:
+                pass
+
+        print(
+            "AI DATA ANALYSIS ERROR:",
+            repr(error),
+        )
+
+        return {
+            "success": False,
+            "message": (
+                f"Data analysis failed: {str(error)}"
+            ),
+        }
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None:
+            connection.close()
+
+        await file.close()
+
+
+# =========================================================
+# DOWNLOADABLE DATA ANALYSIS REPORT
+# =========================================================
+
+@app.get(
+    "/api/v1/data-analysis/report/{file_id}"
+)
+def download_data_analysis_report(
+    file_id: int,
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    """
+    Generate and download a TXT analysis report
+    for a previously analyzed CSV/XLSX file.
+    """
+
+    if file_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid file_id.",
+        }
+
+    user_id = current_user["user_id"]
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                id,
+                user_id,
+                workspace_id,
+                filename,
+                file_path
+            FROM files
+            WHERE id = %s
+              AND user_id = %s;
+            """,
+            (
+                file_id,
+                user_id,
+            ),
+        )
+
+        file_record = cursor.fetchone()
+
+        if file_record is None:
+            return {
+                "success": False,
+                "message": (
+                    "File not found or "
+                    "access denied."
+                ),
+            }
+
+        filename = file_record[3]
+        file_path = file_record[4]
+
+    except Exception as error:
+        return {
+            "success": False,
+            "message": (
+                f"Unable to find analysis file: {str(error)}"
+            ),
+        }
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None:
+            connection.close()
+
+    try:
+        source_path = Path(
+            file_path
+        )
+
+        if not source_path.exists():
+            return {
+                "success": False,
+                "message": (
+                    "The analyzed dataset could "
+                    "not be found on the server."
+                ),
+            }
+
+        extension = (
+            source_path.suffix.lower()
+        )
+
+        if extension not in {
+            ".csv",
+            ".xlsx",
+        }:
+            return {
+                "success": False,
+                "message": (
+                    "This file is not a supported "
+                    "data analysis dataset."
+                ),
+            }
+
+        report_path = generate_analysis_report(
+            file_path=str(source_path)
+        )
+
+        report_file = Path(
+            report_path
+        )
+
+        return FileResponse(
+            path=report_file,
+            media_type="text/plain",
+            filename=(
+                f"{Path(filename).stem}"
+                "_analysis_report.txt"
+            ),
+        )
+
+    except FileNotFoundError:
+        return {
+            "success": False,
+            "message": (
+                "The analyzed dataset "
+                "could not be found."
+            ),
+        }
+
+    except ValueError as error:
+        return {
+            "success": False,
+            "message": str(error),
+        }
+
+    except Exception as error:
+        print(
+            "DATA ANALYSIS REPORT ERROR:",
+            repr(error),
+        )
+
+        return {
+            "success": False,
+            "message": (
+                f"Report generation failed: {str(error)}"
+            ),
+        }
+
+
+# =========================================================
+# DATA ANALYSIS CHARTS
+# =========================================================
+
+@app.get(
+    "/api/v1/data-analysis/charts/{file_id}/{chart_filename}"
+)
+def get_data_analysis_chart(
+    file_id: int,
+    chart_filename: str,
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    """
+    Return a generated PNG chart.
+
+    Access is restricted to the authenticated
+    owner of the analyzed dataset.
+    """
+
+    if file_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid file_id.",
+        }
+
+    user_id = current_user["user_id"]
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                id,
+                user_id,
+                workspace_id,
+                filename,
+                file_path
+            FROM files
+            WHERE id = %s
+              AND user_id = %s;
+            """,
+            (
+                file_id,
+                user_id,
+            ),
+        )
+
+        file_record = cursor.fetchone()
+
+        if file_record is None:
+            return {
+                "success": False,
+                "message": (
+                    "File not found or "
+                    "access denied."
+                ),
+            }
+
+        source_file_path = Path(
+            file_record[4]
+        )
+
+    except Exception as error:
+        return {
+            "success": False,
+            "message": (
+                f"Unable to find analysis file: {str(error)}"
+            ),
+        }
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None:
+            connection.close()
+
+    try:
+        safe_chart_filename = Path(
+            chart_filename
+        ).name
+
+        if not safe_chart_filename.lower().endswith(
+            ".png"
+        ):
+            return {
+                "success": False,
+                "message": (
+                    "Only PNG chart files are supported."
+                ),
+            }
+
+        chart_directory = (
+            source_file_path.parent /
+            "charts"
+        )
+
+        chart_path = (
+            chart_directory /
+            safe_chart_filename
+        )
+
+        if not chart_path.exists():
+            return {
+                "success": False,
+                "message": "Chart not found.",
+            }
+
+        return FileResponse(
+            path=chart_path,
+            media_type="image/png",
+            filename=chart_path.name,
+        )
+
+    except Exception as error:
+        print(
+            "DATA ANALYSIS CHART ERROR:",
+            repr(error),
+        )
+
+        return {
+            "success": False,
+            "message": (
+                f"Chart loading failed: {str(error)}"
+            ),
+        }
 
 
 # =========================================================
@@ -1007,7 +1563,6 @@ def process_uploaded_document(
     cursor = connection.cursor()
 
     try:
-
         cursor.execute(
             """
             SELECT
@@ -1045,7 +1600,6 @@ def process_uploaded_document(
         file_path = file_record[4]
 
     except Exception as error:
-
         return {
             "success": False,
             "message": (
@@ -1054,12 +1608,10 @@ def process_uploaded_document(
         }
 
     finally:
-
         cursor.close()
         connection.close()
 
     try:
-
         result = process_document(
             file_path=file_path,
             file_id=stored_file_id,
@@ -1082,7 +1634,6 @@ def process_uploaded_document(
         }
 
     except FileNotFoundError:
-
         return {
             "success": False,
             "message": (
@@ -1092,14 +1643,12 @@ def process_uploaded_document(
         }
 
     except ValueError as error:
-
         return {
             "success": False,
             "message": str(error),
         }
 
     except Exception as error:
-
         print(
             "DOCUMENT PROCESSING ERROR:",
             repr(error),
@@ -1341,10 +1890,6 @@ def run_coding_agent(
     Run Nova AI Coding Agent.
     """
 
-    # -------------------------------------------------
-    # Validate workspace
-    # -------------------------------------------------
-
     if workspace_id <= 0:
         return {
             "success": False,
@@ -1371,10 +1916,6 @@ def run_coding_agent(
             ),
         }
 
-    # -------------------------------------------------
-    # Validate request
-    # -------------------------------------------------
-
     task = request.task.strip()
     code = request.code
     language = request.language.strip().lower()
@@ -1392,12 +1933,7 @@ def run_coding_agent(
             ),
         }
 
-    # -------------------------------------------------
-    # Execute Coding Agent
-    # -------------------------------------------------
-
     try:
-
         agent = CodingAgent()
 
         result = agent.run(
@@ -1422,7 +1958,6 @@ def run_coding_agent(
         }
 
     except Exception as error:
-
         return {
             "success": False,
             "agent_name": "coding",

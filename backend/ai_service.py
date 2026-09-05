@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from google import genai
+from google.genai.types import HttpOptions
 
 from database import get_connection
 from settings import settings
@@ -123,17 +124,22 @@ def generate_ai_response(
     if not message:
         return "Please enter a message."
 
-    if not settings.GEMINI_API_KEY:
+    api_key = str(settings.GEMINI_API_KEY or "").strip()
+    model_name = str(settings.GEMINI_MODEL or "").strip()
+
+    if not api_key:
         return "Gemini API key is not configured."
+
+    if not model_name:
+        return "Gemini model is not configured."
 
     try:
         client = genai.Client(
-            api_key=settings.GEMINI_API_KEY
+            api_key=api_key,
+            http_options=HttpOptions(
+                api_version="v1beta"
+            ),
         )
-
-        # -----------------------------------------------------
-        # User memory
-        # -----------------------------------------------------
 
         memories = load_user_memories(
             user_id=user_id or 0
@@ -143,13 +149,8 @@ def generate_ai_response(
             memories
         )
 
-        # -----------------------------------------------------
-        # Conversation contents
-        # -----------------------------------------------------
-
         contents = []
 
-        # Nova identity instruction + user memory context.
         contents.append(
             {
                 "role": "user",
@@ -165,22 +166,17 @@ def generate_ai_response(
             }
         )
 
-        # Conversation history.
         if conversation_history:
-
             for item in conversation_history:
-
                 role = item.get("role")
-                content = item.get(
-                    "content",
-                    ""
+                content = str(
+                    item.get("content", "")
                 ).strip()
 
                 if not content:
                     continue
 
                 if role == "user":
-
                     contents.append(
                         {
                             "role": "user",
@@ -193,7 +189,6 @@ def generate_ai_response(
                     )
 
                 elif role == "assistant":
-
                     contents.append(
                         {
                             "role": "model",
@@ -205,27 +200,20 @@ def generate_ai_response(
                         }
                     )
 
-        # -----------------------------------------------------
-        # Current user message + optional file
-        # -----------------------------------------------------
-
-        current_parts = []
-
-        # Current text message.
-        current_parts.append(
+        contents.append(
             {
-                "text": message
+                "role": "user",
+                "parts": [
+                    {
+                        "text": message
+                    }
+                ],
             }
         )
-
-        # -----------------------------------------------------
-        # File support
-        # -----------------------------------------------------
 
         uploaded_gemini_file = None
 
         if file_path:
-
             local_path = Path(file_path)
 
             if not local_path.exists():
@@ -234,40 +222,22 @@ def generate_ai_response(
                     "on the server."
                 )
 
-            # Upload local file to Gemini Files API.
             uploaded_gemini_file = client.files.upload(
                 file=str(local_path)
             )
 
-        # -----------------------------------------------------
-        # Generate response
-        # -----------------------------------------------------
-
         if uploaded_gemini_file:
-
             response = client.models.generate_content(
-                model=settings.GEMINI_MODEL,
+                model=model_name,
                 contents=[
                     *contents,
-                    {
-                        "role": "user",
-                        "parts": current_parts
-                    },
                     uploaded_gemini_file,
-                ]
+                ],
             )
-
         else:
-
             response = client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=[
-                    *contents,
-                    {
-                        "role": "user",
-                        "parts": current_parts
-                    }
-                ]
+                model=model_name,
+                contents=contents,
             )
 
         return (
@@ -276,7 +246,6 @@ def generate_ai_response(
         )
 
     except Exception as e:
-
         print(
             "AI RESPONSE ERROR:",
             repr(e)

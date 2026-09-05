@@ -20,9 +20,17 @@ env/
 # Logs
 *.log
 
-# OS files
-.DS_Store
-Thumbs.db
+# User uploaded/generated files
+uploads/
+generated/
+
+# Local datasets and test files
+*.csv
+*.xlsx
 
 # IDE
 .vscode/
+
+# OS files
+.DS_Store
+Thumbs.db

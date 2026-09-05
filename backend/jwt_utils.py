@@ -2,13 +2,16 @@ from datetime import datetime, timedelta, timezone
 
 from jose import jwt
 
-# Development secret key
-SECRET_KEY = "nova-ai-development-secret-key"
+from settings import settings
+
+
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+def create_access_token(
+    data: dict,
+    expires_delta: timedelta | None = None
+) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
 
@@ -16,14 +19,22 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(
-            minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
 
     to_encode.update({"exp": expire})
 
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(
+        to_encode,
+        settings.SECRET_KEY,
+        algorithm=ALGORITHM
+    )
 
 
 def decode_access_token(token: str) -> dict:
-    """Decode and verify a JWT access token."""
-    return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    """Decode and verify the JWT access token."""
+    return jwt.decode(
+        token,
+        settings.SECRET_KEY,
+        algorithms=[ALGORITHM]
+    )

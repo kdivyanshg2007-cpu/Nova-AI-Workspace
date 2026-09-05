@@ -1,109 +1,222 @@
+import "./App.css";
+
+import { useState } from "react";
+
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import Dashboard from "./pages/Dashboard";
+import Document from "./pages/Document";
+import Chat from "./pages/Chat";
+import DataAnalysis from "./pages/DataAnalysis";
+
+import Workspace from "../Workspace";
+import CodingWorkspace from "./components/CodingWorkspace";
+import ResearchWorkspace from "./components/ResearchWorkspace";
+import SharedResearch from "./components/SharedResearch";
+
 function App() {
-  return (
-    <div className="min-h-screen bg-gray-100 flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r min-h-screen p-5">
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-lg bg-black text-white flex items-center justify-center font-bold">
-            N
-          </div>
+  const [page, setPage] = useState(() => {
+    const path = window.location.pathname;
 
-          <h1 className="text-xl font-bold">Nova AI</h1>
-        </div>
+    if (path === "/chat") return "chat";
+    if (path === "/document") return "document";
+    if (path === "/coding") return "coding";
+    if (path === "/research") return "research";
+    if (path === "/data-analysis") return "data-analysis";
 
-        <nav className="mt-8 space-y-2">
-          <button className="w-full text-left px-4 py-3 rounded-lg bg-gray-100 font-medium">
-            Dashboard
-          </button>
+    if (path.startsWith("/shared/")) {
+      return "shared-research";
+    }
 
-          <button className="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100">
-            AI Chat
-          </button>
+    return localStorage.getItem("nova_token")
+      ? "dashboard"
+      : "login";
+  });
 
-          <button className="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100">
-            Documents
-          </button>
+  const [selectedWorkspace, setSelectedWorkspace] = useState(() => {
+    const savedWorkspace = localStorage.getItem("nova_workspace");
 
-          <button className="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100">
-            Research
-          </button>
+    if (!savedWorkspace) {
+      return null;
+    }
 
-          <button className="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100">
-            AI Coding
-          </button>
-        </nav>
+    try {
+      return JSON.parse(savedWorkspace);
+    } catch {
+      return null;
+    }
+  });
 
-        <div className="mt-10 text-sm text-gray-500">
-          Nova AI Workspace
-        </div>
-      </aside>
+  const handleLogin = () => {
+    setPage("dashboard");
+    window.history.pushState({}, "", "/");
+  };
 
-      {/* Main Area */}
-      <main className="flex-1">
-        <header className="h-16 bg-white border-b flex items-center justify-between px-8">
-          <div>
-            <h2 className="text-xl font-semibold">Dashboard</h2>
-            <p className="text-sm text-gray-500">
-              Welcome back to Nova AI Workspace
-            </p>
-          </div>
+  const handleLogout = () => {
+    localStorage.removeItem("nova_token");
+    localStorage.removeItem("nova_user");
+    localStorage.removeItem("nova_workspace_id");
+    localStorage.removeItem("nova_workspace");
 
-          <button className="px-4 py-2 rounded-lg bg-black text-white hover:opacity-90">
-            New Workspace
-          </button>
-        </header>
+    setSelectedWorkspace(null);
+    setPage("login");
 
-        <section className="p-8">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold">
-              Welcome to Nova AI
-            </h1>
+    window.history.pushState({}, "", "/");
+  };
 
-            <p className="mt-2 text-gray-600">
-              Your intelligent workspace for AI-powered productivity.
-            </p>
-          </div>
+  const handleOpenWorkspace = (workspace) => {
+    const workspaceId =
+      workspace?.id ??
+      workspace?.workspace_id ??
+      null;
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-            <div className="bg-white rounded-xl border p-6 hover:shadow-md transition">
-              <h3 className="text-lg font-semibold">AI Chat</h3>
-              <p className="mt-2 text-gray-500 text-sm">
-                Chat with AI and work with multimodal inputs.
-              </p>
-            </div>
+    const normalizedWorkspace = {
+      ...workspace,
+      id: workspaceId,
+    };
 
-            <div className="bg-white rounded-xl border p-6 hover:shadow-md transition">
-              <h3 className="text-lg font-semibold">Documents</h3>
-              <p className="mt-2 text-gray-500 text-sm">
-                Create, manage and analyze your documents.
-              </p>
-            </div>
+    setSelectedWorkspace(normalizedWorkspace);
 
-            <div className="bg-white rounded-xl border p-6 hover:shadow-md transition">
-              <h3 className="text-lg font-semibold">AI Research</h3>
-              <p className="mt-2 text-gray-500 text-sm">
-                Research topics using AI-powered tools.
-              </p>
-            </div>
+    localStorage.setItem(
+      "nova_workspace",
+      JSON.stringify(normalizedWorkspace),
+    );
 
-            <div className="bg-white rounded-xl border p-6 hover:shadow-md transition">
-              <h3 className="text-lg font-semibold">AI Coding</h3>
-              <p className="mt-2 text-gray-500 text-sm">
-                Write, analyze and improve code with AI.
-              </p>
-            </div>
-          </div>
+    if (workspaceId) {
+      localStorage.setItem(
+        "nova_workspace_id",
+        String(workspaceId),
+      );
+    }
 
-          <div className="mt-8 bg-white rounded-xl border p-6">
-            <h2 className="text-xl font-semibold">Recent Activity</h2>
-            <p className="mt-3 text-gray-500">
-              No recent activity yet.
-            </p>
-          </div>
-        </section>
-      </main>
-    </div>
-  );
+    setPage("workspace");
+    window.history.pushState({}, "", "/");
+  };
+
+  const handleBackToDashboard = () => {
+    setSelectedWorkspace(null);
+    setPage("dashboard");
+    window.history.pushState({}, "", "/");
+  };
+
+  const handleBackToWorkspace = () => {
+    setPage("workspace");
+    window.history.pushState({}, "", "/");
+  };
+
+  const handleOpenDataAnalysis = () => {
+    setPage("data-analysis");
+    window.history.pushState(
+      {},
+      "",
+      "/data-analysis",
+    );
+  };
+
+  if (page === "shared-research") {
+    return <SharedResearch />;
+  }
+
+  if (page === "login") {
+    return (
+      <div className="nova-route nova-route-auth">
+        <Login
+          onSignup={() => setPage("signup")}
+          onLogin={handleLogin}
+        />
+      </div>
+    );
+  }
+
+  if (page === "signup") {
+    return (
+      <div className="nova-route nova-route-auth">
+        <Signup
+          onLogin={() => setPage("login")}
+        />
+      </div>
+    );
+  }
+
+  if (page === "dashboard") {
+    return (
+      <div className="nova-route nova-route-app">
+        <Dashboard
+          onLogout={handleLogout}
+          onOpenWorkspace={handleOpenWorkspace}
+        />
+      </div>
+    );
+  }
+
+  if (page === "workspace") {
+    return (
+      <div className="nova-route nova-route-app">
+        <Workspace
+          workspace={selectedWorkspace}
+          onBack={handleBackToDashboard}
+          onOpenDataAnalysis={handleOpenDataAnalysis}
+        />
+      </div>
+    );
+  }
+
+  if (page === "data-analysis") {
+    return (
+      <div className="nova-route nova-route-app">
+        <DataAnalysis
+          workspace={selectedWorkspace}
+          onBack={handleBackToWorkspace}
+        />
+      </div>
+    );
+  }
+
+  if (page === "chat") {
+    return (
+      <div className="nova-route nova-route-app">
+        <Chat
+          workspace={selectedWorkspace}
+          onBack={handleBackToWorkspace}
+        />
+      </div>
+    );
+  }
+
+  if (page === "document") {
+    return (
+      <div className="nova-route nova-route-app">
+        <Document
+          workspace={selectedWorkspace}
+          onBack={handleBackToWorkspace}
+        />
+      </div>
+    );
+  }
+
+  if (page === "coding") {
+    return (
+      <div className="nova-route nova-route-app">
+        <CodingWorkspace
+          workspace={selectedWorkspace}
+          onBack={handleBackToWorkspace}
+        />
+      </div>
+    );
+  }
+
+  if (page === "research") {
+    return (
+      <div className="nova-route nova-route-app">
+        <ResearchWorkspace
+          workspace={selectedWorkspace}
+          onBack={handleBackToWorkspace}
+        />
+      </div>
+    );
+  }
+
+  return null;
 }
 
 export default App;

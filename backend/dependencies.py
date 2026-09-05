@@ -5,18 +5,32 @@ from jose import JWTError
 from jwt_utils import decode_access_token
 
 
+# =========================================================
+# HTTP AUTHENTICATION
+# =========================================================
+
 security = HTTPBearer()
 
 
+# =========================================================
+# GET CURRENT USER
+# =========================================================
+
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(
+        security
+    )
 ):
-    """Validate the JWT token from the Authorization header."""
+    """
+    Validate the JWT token from the Authorization header
+    and return the authenticated user's ID.
+    """
 
     token = credentials.credentials
 
     try:
         payload = decode_access_token(token)
+
         user_id = payload.get("user_id")
 
         if user_id is None:
@@ -25,7 +39,9 @@ def get_current_user(
                 detail="Invalid token.",
             )
 
-        return {"user_id": user_id}
+        return {
+            "user_id": user_id
+        }
 
     except JWTError:
         raise HTTPException(

@@ -1,0 +1,293 @@
+.shared-research-page {
+  min-height: 100vh;
+  background: #f7f8fa;
+  color: #1f2937;
+}
+
+.shared-research-header {
+  min-height: 76px;
+  padding: 18px 28px;
+  display: flex;
+  align-items: center;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  box-sizing: border-box;
+}
+
+.shared-header-inner {
+  width: min(1000px, 100%);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.shared-research-brand {
+  font-size: 24px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.shared-research-subtitle {
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.shared-header-badge {
+  padding: 8px 11px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.shared-research-container {
+  width: min(900px, calc(100% - 40px));
+  margin: 32px auto;
+}
+
+.shared-research-card {
+  margin-bottom: 20px;
+  padding: 24px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  box-sizing: border-box;
+}
+
+.shared-research-card h1 {
+  color: #111827;
+}
+
+.shared-research-card h2 {
+  margin: 0 0 14px;
+  color: #111827;
+  font-size: 20px;
+}
+
+.shared-report-title {
+  margin: 12px 0 20px;
+  font-size: 28px;
+  line-height: 1.35;
+}
+
+.shared-badge {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.shared-query-box {
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.shared-label {
+  margin-bottom: 5px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.shared-value {
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.shared-id-text {
+  margin-top: 12px;
+  color: #9ca3af;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.shared-summary {
+  margin: 0;
+  color: #374151;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.shared-findings {
+  margin: 0;
+  padding-left: 24px;
+}
+
+.shared-findings li {
+  margin-bottom: 10px;
+  padding-left: 4px;
+  color: #374151;
+  line-height: 1.7;
+}
+
+.shared-muted {
+  margin: 0;
+  color: #9ca3af;
+}
+
+.shared-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 15px;
+}
+
+.shared-section-header h2 {
+  margin-bottom: 4px;
+}
+
+.shared-section-header p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.shared-citation-list {
+  display: grid;
+  gap: 12px;
+}
+
+.shared-citation {
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: white;
+}
+
+.shared-citation-number {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #f3f4f6;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.shared-citation-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.shared-citation-content h3 {
+  margin: 0 0 7px;
+  color: #111827;
+  font-size: 15px;
+}
+
+.shared-citation-content a {
+  display: block;
+  margin-top: 9px;
+  color: #4b5563;
+  font-size: 13px;
+  word-break: break-all;
+  text-decoration: none;
+}
+
+.shared-citation-content a:hover {
+  color: #111827;
+}
+
+.shared-source-type {
+  display: inline-block;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.shared-empty {
+  padding: 20px;
+  text-align: center;
+  color: #9ca3af;
+  border: 1px dashed #d1d5db;
+  border-radius: 10px;
+}
+
+.shared-research-footer {
+  padding: 10px 0 30px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.shared-status-card {
+  text-align: center;
+  padding: 50px 24px;
+}
+
+.shared-status-card h1 {
+  margin: 12px 0 8px;
+  font-size: 24px;
+}
+
+.shared-status-card p {
+  margin: 0;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.shared-loading-icon,
+.shared-error-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #f3f4f6;
+  color: #111827;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+@media (max-width: 700px) {
+  .shared-research-header {
+    padding: 16px;
+  }
+
+  .shared-header-inner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .shared-research-container {
+    width: calc(100% - 24px);
+    margin: 16px auto;
+  }
+
+  .shared-research-card {
+    padding: 18px;
+  }
+
+  .shared-report-title {
+    font-size: 22px;
+  }
+
+  .shared-citation {
+    padding: 12px;
+  }
+}
