@@ -232,3 +232,34 @@ CREATE TABLE IF NOT EXISTS ai_evaluations (
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+-- =========================================================
+-- DAY 40 — AI USAGE LOGS
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS ai_usage_logs (
+    id SERIAL PRIMARY KEY,
+
+    user_id INTEGER NOT NULL
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    workspace_id INTEGER
+        REFERENCES workspaces(id)
+        ON DELETE SET NULL,
+
+    provider VARCHAR(30) NOT NULL,
+
+    model VARCHAR(100) NOT NULL,
+
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+
+    total_tokens INTEGER NOT NULL DEFAULT 0,
+
+    estimated_cost NUMERIC(12, 6) NOT NULL DEFAULT 0,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
