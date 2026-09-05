@@ -198,3 +198,37 @@ CREATE TABLE IF NOT EXISTS user_preferences (
 
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+-- =========================================================
+-- DAY 39 — AI EVALUATIONS
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS ai_evaluations (
+    id SERIAL PRIMARY KEY,
+
+    user_id INTEGER NOT NULL
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    workspace_id INTEGER
+        REFERENCES workspaces(id)
+        ON DELETE CASCADE,
+
+    conversation_id INTEGER
+        REFERENCES conversations(id)
+        ON DELETE SET NULL,
+
+    message_id INTEGER
+        REFERENCES messages(id)
+        ON DELETE SET NULL,
+
+    score INTEGER NOT NULL
+        CHECK (score >= 1 AND score <= 5),
+
+    feedback TEXT,
+
+    evaluation_type VARCHAR(50) NOT NULL DEFAULT 'quality',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
