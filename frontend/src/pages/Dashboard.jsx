@@ -7,10 +7,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
 
   const token = localStorage.getItem("nova_token");
 
-  // =========================================================
-  // WORKSPACE STATES
-  // =========================================================
-
   const [workspaceName, setWorkspaceName] = useState("");
   const [message, setMessage] = useState("");
 
@@ -31,10 +27,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
   const [deletingWorkspaceId, setDeletingWorkspaceId] =
     useState(null);
 
-  // =========================================================
-  // PREFERENCES STATES
-  // =========================================================
-
   const [preferences, setPreferences] = useState(() => ({
     language:
       localStorage.getItem("nova_language") || "en",
@@ -53,16 +45,11 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
   const [savingPreferences, setSavingPreferences] =
     useState(false);
 
-  // =========================================================
-  // DAY 42 - AI EVALUATION + USAGE STATES
-  // =========================================================
-
   const [evaluations, setEvaluations] = useState([]);
   const [usageLogs, setUsageLogs] = useState([]);
 
-  // =========================================================
-  // THEME
-  // =========================================================
+  const API_BASE_URL =
+    import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
   const applyTheme = (theme) => {
     const normalizedTheme =
@@ -98,10 +85,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     applyTheme(preferences.theme);
   }, [preferences.theme]);
 
-  // =========================================================
-  // UNAUTHORIZED
-  // =========================================================
-
   const handleUnauthorized = () => {
     localStorage.removeItem("nova_token");
     localStorage.removeItem("nova_user");
@@ -115,10 +98,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     onLogout();
   };
 
-  // =========================================================
-  // LOAD PREFERENCES
-  // =========================================================
-
   const loadPreferences = async () => {
     if (!token) {
       handleUnauthorized();
@@ -129,7 +108,7 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       setLoadingPreferences(true);
 
       const response = await fetch(
-        "http://127.0.0.1:8000/api/v1/preferences",
+        `${API_BASE_URL}/api/v1/preferences`,
         {
           method: "GET",
           headers: {
@@ -186,10 +165,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
-  // =========================================================
-  // SAVE PREFERENCES
-  // =========================================================
-
   const savePreferences = async () => {
     if (!token) {
       handleUnauthorized();
@@ -201,7 +176,7 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       setMessage("");
 
       const response = await fetch(
-        "http://127.0.0.1:8000/api/v1/preferences",
+        `${API_BASE_URL}/api/v1/preferences`,
         {
           method: "PUT",
           headers: {
@@ -266,10 +241,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
-  // =========================================================
-  // LOAD AI EVALUATIONS
-  // =========================================================
-
   const loadEvaluations = async () => {
     if (!token) {
       handleUnauthorized();
@@ -278,7 +249,7 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/v1/evaluations",
+        `${API_BASE_URL}/api/v1/evaluations`,
         {
           method: "GET",
           headers: {
@@ -315,10 +286,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
-  // =========================================================
-  // LOAD USAGE LOGS
-  // =========================================================
-
   const loadUsageLogs = async () => {
     if (!token) {
       handleUnauthorized();
@@ -327,7 +294,7 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/v1/usage",
+        `${API_BASE_URL}/api/v1/usage`,
         {
           method: "GET",
           headers: {
@@ -364,10 +331,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
-  // =========================================================
-  // LOAD WORKSPACES
-  // =========================================================
-
   const loadWorkspaces = async () => {
     if (!token) {
       handleUnauthorized();
@@ -379,7 +342,7 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       setMessage("");
 
       const response = await fetch(
-        "http://127.0.0.1:8000/api/v1/workspaces",
+        `${API_BASE_URL}/api/v1/workspaces`,
         {
           method: "GET",
           headers: {
@@ -451,20 +414,12 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
-  // =========================================================
-  // INITIAL LOAD
-  // =========================================================
-
   useEffect(() => {
     loadWorkspaces();
     loadPreferences();
     loadEvaluations();
     loadUsageLogs();
   }, []);
-
-  // =========================================================
-  // CREATE WORKSPACE
-  // =========================================================
 
   const createWorkspace = async () => {
     const trimmedWorkspaceName =
@@ -487,7 +442,7 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/workspaces?name=${encodeURIComponent(
+        `${API_BASE_URL}/api/v1/workspaces?name=${encodeURIComponent(
           trimmedWorkspaceName
         )}`,
         {
@@ -552,10 +507,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
-  // =========================================================
-  // RENAME WORKSPACE
-  // =========================================================
-
   const startWorkspaceRename = (
     workspace
   ) => {
@@ -598,7 +549,7 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       setMessage("");
 
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/workspaces/${workspaceId}?name=${encodeURIComponent(
+        `${API_BASE_URL}/api/v1/workspaces/${workspaceId}?name=${encodeURIComponent(
           trimmedName
         )}`,
         {
@@ -694,10 +645,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
-  // =========================================================
-  // DELETE WORKSPACE
-  // =========================================================
-
   const deleteWorkspace = async (
     workspaceId
   ) => {
@@ -733,7 +680,7 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       setMessage("");
 
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/workspaces/${workspaceId}`,
+        `${API_BASE_URL}/api/v1/workspaces/${workspaceId}`,
         {
           method: "DELETE",
           headers: {
@@ -802,20 +749,12 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
-  // =========================================================
-  // LOGOUT
-  // =========================================================
-
   const handleLogout = () => {
     localStorage.removeItem("nova_token");
     localStorage.removeItem("nova_user");
 
     onLogout();
   };
-
-  // =========================================================
-  // UI
-  // =========================================================
 
   return (
     <div
@@ -825,10 +764,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
           : "nova-light-theme"
       }`}
     >
-      {/* ===================================================
-          HEADER
-          =================================================== */}
-
       <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex items-center justify-between shadow-sm">
         <div>
           <h1 className="text-lg sm:text-xl font-bold text-slate-900">
@@ -850,11 +785,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       </header>
 
       <main className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5 sm:space-y-6">
-
-        {/* =================================================
-            WELCOME
-            ================================================= */}
-
         <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
           <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
             Welcome
@@ -875,10 +805,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
               : "Missing ❌"}
           </p>
         </div>
-
-        {/* =================================================
-            CREATE WORKSPACE
-            ================================================= */}
 
         <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
           <h3 className="text-lg sm:text-xl font-semibold text-slate-900">
@@ -939,10 +865,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
           )}
         </div>
 
-        {/* =================================================
-            PREFERENCES
-            ================================================= */}
-
         <section className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -963,8 +885,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
-
-            {/* Language */}
             <label className="block">
               <span className="block text-sm font-medium text-slate-700 mb-2">
                 Language
@@ -999,7 +919,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
               </select>
             </label>
 
-            {/* Theme */}
             <label className="block">
               <span className="block text-sm font-medium text-slate-700 mb-2">
                 Theme
@@ -1040,7 +959,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
               </select>
             </label>
 
-            {/* Model */}
             <label className="block">
               <span className="block text-sm font-medium text-slate-700 mb-2">
                 AI Model
@@ -1101,16 +1019,7 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
           </div>
         </section>
 
-        {/* =================================================
-            DAY 42 - AI EVALUATION + USAGE
-            ================================================= */}
-
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
-          {/* =================================================
-              AI EVALUATIONS
-              ================================================= */}
-
           <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -1181,10 +1090,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
               </div>
             )}
           </div>
-
-          {/* =================================================
-              AI USAGE
-              ================================================= */}
 
           <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
             <div className="flex items-start justify-between gap-3">
@@ -1259,10 +1164,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
             )}
           </div>
         </section>
-
-        {/* =================================================
-            WORKSPACES
-            ================================================= */}
 
         <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
           <div className="flex items-center justify-between">
@@ -1367,7 +1268,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
                       </div>
                     ) : (
                       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-
                         <button
                           type="button"
                           onClick={() =>
@@ -1392,7 +1292,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
                         </button>
 
                         <div className="flex flex-wrap items-center gap-2">
-
                           <button
                             type="button"
                             onClick={() =>
@@ -1443,7 +1342,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
                           >
                             Open →
                           </button>
-
                         </div>
                       </div>
                     )}

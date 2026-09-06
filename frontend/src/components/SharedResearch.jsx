@@ -7,6 +7,9 @@ function SharedResearch() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const API_BASE_URL =
+    import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
   useEffect(() => {
     const loadSharedResearch = async () => {
       const pathParts = window.location.pathname.split("/");
@@ -23,7 +26,7 @@ function SharedResearch() {
 
       try {
         const response = await fetch(
-          "http://127.0.0.1:8000/api/v1/research/shared/" +
+          `${API_BASE_URL}/api/v1/research/shared/` +
             currentShareId
         );
 
@@ -165,11 +168,8 @@ function SharedResearch() {
 
   return (
     <div className="shared-research-page">
-
       <header className="shared-research-header">
-
         <div className="shared-header-inner">
-
           <div>
             <div className="shared-research-brand">
               Nova AI
@@ -183,15 +183,11 @@ function SharedResearch() {
           <div className="shared-header-badge">
             🔗 Shared
           </div>
-
         </div>
-
       </header>
 
       <main className="shared-research-container">
-
         <section className="shared-research-card">
-
           <div className="shared-badge">
             Shared Research
           </div>
@@ -202,7 +198,6 @@ function SharedResearch() {
           </h1>
 
           <div className="shared-query-box">
-
             <div className="shared-label">
               Research Query
             </div>
@@ -211,7 +206,6 @@ function SharedResearch() {
               {report.query ||
                 "No query available."}
             </div>
-
           </div>
 
           {shareId && (
@@ -219,11 +213,9 @@ function SharedResearch() {
               Share ID: {shareId}
             </div>
           )}
-
         </section>
 
         <section className="shared-research-card">
-
           <h2>
             Summary
           </h2>
@@ -232,25 +224,19 @@ function SharedResearch() {
             {report.summary ||
               "No summary available."}
           </p>
-
         </section>
 
         <section className="shared-research-card">
-
           <h2>
             Key Findings
           </h2>
 
           {findings.length === 0 ? (
-
             <p className="shared-muted">
               No key findings available.
             </p>
-
           ) : (
-
             <ol className="shared-findings">
-
               {findings.map(
                 (finding, index) => (
                   <li key={index}>
@@ -258,17 +244,12 @@ function SharedResearch() {
                   </li>
                 )
               )}
-
             </ol>
-
           )}
-
         </section>
 
         <section className="shared-research-card">
-
           <div className="shared-section-header">
-
             <div>
               <h2>
                 Sources & Citations
@@ -281,22 +262,16 @@ function SharedResearch() {
                   : "sources"}
               </p>
             </div>
-
           </div>
 
           {citations.length === 0 ? (
-
             <div className="shared-empty">
               No sources available.
             </div>
-
           ) : (
-
             <div className="shared-citation-list">
-
               {citations.map(
                 (citation, index) => (
-
                   <article
                     className="shared-citation"
                     key={
@@ -305,14 +280,12 @@ function SharedResearch() {
                       index
                     }
                   >
-
                     <div className="shared-citation-number">
                       {citation.id ||
                         index + 1}
                     </div>
 
                     <div className="shared-citation-content">
-
                       <h3>
                         {citation.title ||
                           "Web Source"}
@@ -337,26 +310,18 @@ function SharedResearch() {
                           Open Source ↗
                         </a>
                       )}
-
                     </div>
-
                   </article>
-
                 )
               )}
-
             </div>
-
           )}
-
         </section>
 
         <div className="shared-research-footer">
           Generated and shared with Nova AI Workspace.
         </div>
-
       </main>
-
     </div>
   );
 }

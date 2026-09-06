@@ -12,6 +12,9 @@ function CodingWorkspace({
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const API_BASE_URL =
+    import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
   const operations = [
     "Generate",
     "Explain",
@@ -51,7 +54,7 @@ function CodingWorkspace({
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/coding/run?workspace_id=${workspace.id}`,
+        `${API_BASE_URL}/api/v1/coding/run?workspace_id=${workspace.id}`,
         {
           method: "POST",
           headers: {
@@ -189,7 +192,6 @@ function CodingWorkspace({
 
       </header>
 
-
       {/* Toolbar */}
       <div className="coding-toolbar">
 
@@ -213,7 +215,6 @@ function CodingWorkspace({
           </select>
         </div>
 
-
         <div className="toolbar-group">
           <label htmlFor="operation">
             Action
@@ -234,7 +235,6 @@ function CodingWorkspace({
           </select>
         </div>
 
-
         <button
           className="run-button"
           onClick={handleAction}
@@ -244,7 +244,6 @@ function CodingWorkspace({
         </button>
 
       </div>
-
 
       {/* Main Panels */}
       <div className="coding-panels">
@@ -265,7 +264,6 @@ function CodingWorkspace({
 
         </div>
 
-
         <div className="coding-panel">
 
           <div className="panel-header">
@@ -285,7 +283,6 @@ function CodingWorkspace({
         </div>
 
       </div>
-
 
       {/* AI Result */}
       <div className="result-panel">

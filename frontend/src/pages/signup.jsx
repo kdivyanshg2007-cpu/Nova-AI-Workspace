@@ -7,6 +7,9 @@ function Signup({ onLogin }) {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const API_BASE_URL =
+    import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setMessage("");
@@ -21,7 +24,7 @@ function Signup({ onLogin }) {
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/auth/signup?name=${encodeURIComponent(
+        `${API_BASE_URL}/api/v1/auth/signup?name=${encodeURIComponent(
           name.trim()
         )}&email=${encodeURIComponent(
           email.trim()

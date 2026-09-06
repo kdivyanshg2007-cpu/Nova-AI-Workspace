@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-const API_BASE = "http://127.0.0.1:8000/api/v1";
+const API_BASE =
+  import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api/v1`
+    : "http://127.0.0.1:8000/api/v1";
 
 function Chat({ workspace, onBack }) {
   const token = localStorage.getItem("nova_token");
@@ -223,7 +226,6 @@ function Chat({ workspace, onBack }) {
           uploadedFile,
         ]);
 
-        // Clear old document answer when a new document is uploaded.
         setDocumentAnswer("");
         setDocumentSources([]);
         setDocumentError("");

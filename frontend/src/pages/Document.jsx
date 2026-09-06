@@ -22,12 +22,15 @@ function Document({ workspace, onBack }) {
   const [selectedDocument, setSelectedDocument] =
     useState(null);
 
+  const API_BASE_URL =
+    import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
   const loadDocuments = async () => {
     if (!workspace?.id) return;
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/documents?workspace_id=${workspace.id}`,
+        `${API_BASE_URL}/api/v1/documents?workspace_id=${workspace.id}`,
         {
           method: "GET",
           headers: {
@@ -76,7 +79,7 @@ function Document({ workspace, onBack }) {
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/documents?workspace_id=${
+        `${API_BASE_URL}/api/v1/documents?workspace_id=${
           workspace.id
         }&title=${encodeURIComponent(
           title
@@ -154,7 +157,7 @@ function Document({ workspace, onBack }) {
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/documents/${editingId}?title=${encodeURIComponent(
+        `${API_BASE_URL}/api/v1/documents/${editingId}?title=${encodeURIComponent(
           editTitle
         )}&content=${encodeURIComponent(
           editContent
@@ -214,7 +217,7 @@ function Document({ workspace, onBack }) {
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/documents/${documentId}`,
+        `${API_BASE_URL}/api/v1/documents/${documentId}`,
         {
           method: "DELETE",
           headers: {
@@ -278,7 +281,7 @@ function Document({ workspace, onBack }) {
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/documents/search?workspace_id=${
+        `${API_BASE_URL}/api/v1/documents/search?workspace_id=${
           workspace.id
         }&query=${encodeURIComponent(
           searchQuery

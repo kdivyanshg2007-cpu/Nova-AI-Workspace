@@ -7,7 +7,6 @@ function DataAnalysis({ workspace, onBack }) {
   const [message, setMessage] = useState("");
   const [analysis, setAnalysis] = useState(null);
   const [analysisFileId, setAnalysisFileId] = useState(null);
-
   const [chartUrls, setChartUrls] = useState({});
   const [chartErrors, setChartErrors] = useState({});
   const [chartsLoading, setChartsLoading] = useState(false);
@@ -19,7 +18,8 @@ function DataAnalysis({ workspace, onBack }) {
     workspace?.workspace_id ||
     localStorage.getItem("nova_workspace_id");
 
-  const API_BASE_URL = "http://127.0.0.1:8000";
+  const API_BASE_URL =
+    import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
   const handleFileChange = (event) => {
     const file = event.target.files?.[0] || null;
@@ -101,11 +101,9 @@ function DataAnalysis({ workspace, onBack }) {
 
       setAnalysis(data.analysis || null);
       setAnalysisFileId(data.file_id || null);
-
       setMessage("Dataset analyzed successfully ✅");
     } catch (error) {
       console.error("DATA ANALYSIS ERROR:", error);
-
       setMessage("Unable to connect to Nova backend.");
     } finally {
       setLoading(false);
@@ -159,7 +157,6 @@ function DataAnalysis({ workspace, onBack }) {
       }
 
       const blob = await response.blob();
-
       const downloadUrl = window.URL.createObjectURL(blob);
 
       const link = document.createElement("a");
@@ -173,9 +170,7 @@ function DataAnalysis({ workspace, onBack }) {
       link.download = `${baseName}_analysis_report.txt`;
 
       document.body.appendChild(link);
-
       link.click();
-
       link.remove();
 
       window.URL.revokeObjectURL(downloadUrl);
@@ -183,7 +178,6 @@ function DataAnalysis({ workspace, onBack }) {
       setMessage("Analysis report downloaded successfully ✅");
     } catch (error) {
       console.error("REPORT DOWNLOAD ERROR:", error);
-
       setMessage("Unable to download the analysis report.");
     } finally {
       setReportLoading(false);
@@ -196,7 +190,6 @@ function DataAnalysis({ workspace, onBack }) {
 
   useEffect(() => {
     let cancelled = false;
-
     const createdUrls = [];
 
     const loadCharts = async () => {
@@ -283,16 +276,13 @@ function DataAnalysis({ workspace, onBack }) {
           const blob = await response.blob();
 
           if (!blob || blob.size === 0) {
-            nextErrors[chartFilename] =
-              "Chart file is empty.";
-
+            nextErrors[chartFilename] = "Chart file is empty.";
             continue;
           }
 
           const objectUrl = window.URL.createObjectURL(blob);
 
           createdUrls.push(objectUrl);
-
           nextUrls[chartFilename] = objectUrl;
         } catch (error) {
           console.error(
@@ -301,8 +291,7 @@ function DataAnalysis({ workspace, onBack }) {
             error
           );
 
-          nextErrors[chartFilename] =
-            "Unable to load chart.";
+          nextErrors[chartFilename] = "Unable to load chart.";
         }
       }
 

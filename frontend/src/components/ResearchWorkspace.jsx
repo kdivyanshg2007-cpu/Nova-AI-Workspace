@@ -19,6 +19,9 @@ function ResearchWorkspace({ workspace, onBack }) {
   const [shareId, setShareId] = useState("");
   const [shareUrl, setShareUrl] = useState("");
 
+  const API_BASE_URL =
+    import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
   const [history, setHistory] = useState(() => {
     try {
       const savedHistory =
@@ -91,7 +94,7 @@ function ResearchWorkspace({ workspace, onBack }) {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/v1/research/run?workspace_id=" +
+        `${API_BASE_URL}/api/v1/research/run?workspace_id=` +
           workspace.id,
         {
           method: "POST",
@@ -360,7 +363,7 @@ function ResearchWorkspace({ workspace, onBack }) {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/v1/research/export-pdf",
+        `${API_BASE_URL}/api/v1/research/export-pdf`,
         {
           method: "POST",
           headers: {
@@ -431,7 +434,7 @@ function ResearchWorkspace({ workspace, onBack }) {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/v1/research/share",
+        `${API_BASE_URL}/api/v1/research/share`,
         {
           method: "POST",
           headers: {
@@ -462,9 +465,10 @@ function ResearchWorkspace({ workspace, onBack }) {
       }
 
       const backendUrl = data.share_url || "";
+
       const fullUrl = backendUrl.startsWith("http")
         ? backendUrl
-        : "http://127.0.0.1:8000" + backendUrl;
+        : API_BASE_URL + backendUrl;
 
       setShareId(data.share_id || "");
       setShareUrl(fullUrl);
@@ -565,11 +569,8 @@ function ResearchWorkspace({ workspace, onBack }) {
 
   return (
     <div className="research-workspace">
-
       <header className="research-topbar">
-
         <div className="research-brand">
-
           <div className="research-title">
             Nova AI Research Workspace
           </div>
@@ -584,7 +585,6 @@ function ResearchWorkspace({ workspace, onBack }) {
               Workspace: {workspace.name}
             </div>
           )}
-
         </div>
 
         <button
@@ -594,13 +594,10 @@ function ResearchWorkspace({ workspace, onBack }) {
         >
           ← Back to Workspace
         </button>
-
       </header>
 
       <main className="research-content">
-
         <section className="research-search-card">
-
           <label htmlFor="research-query">
             Research Query
           </label>
@@ -624,7 +621,6 @@ function ResearchWorkspace({ workspace, onBack }) {
               marginTop: "14px",
             }}
           >
-
             <button
               type="button"
               className="research-run-button"
@@ -671,16 +667,12 @@ function ResearchWorkspace({ workspace, onBack }) {
             >
               Share Research
             </button>
-
           </div>
-
         </section>
 
         {showSharePanel && report && (
           <section className="share-research-panel">
-
             <div className="share-panel-header">
-
               <div>
                 <h2>
                   Share Research
@@ -700,13 +692,10 @@ function ResearchWorkspace({ workspace, onBack }) {
               >
                 ✕
               </button>
-
             </div>
 
             <div className="share-panel-body">
-
               <div className="share-info-box">
-
                 <div className="share-info-label">
                   Report
                 </div>
@@ -715,11 +704,9 @@ function ResearchWorkspace({ workspace, onBack }) {
                   {report.title ||
                     "Nova AI Research Report"}
                 </div>
-
               </div>
 
               <div className="share-info-box">
-
                 <div className="share-info-label">
                   Query
                 </div>
@@ -728,11 +715,9 @@ function ResearchWorkspace({ workspace, onBack }) {
                   {report.query ||
                     query}
                 </div>
-
               </div>
 
               <div className="share-info-box">
-
                 <div className="share-info-label">
                   Sources
                 </div>
@@ -742,7 +727,6 @@ function ResearchWorkspace({ workspace, onBack }) {
                     sources.length}{" "}
                   sources
                 </div>
-
               </div>
 
               {shareId && (
@@ -750,6 +734,7 @@ function ResearchWorkspace({ workspace, onBack }) {
                   <div className="share-info-label">
                     Share ID
                   </div>
+
                   <div className="share-info-value">
                     {shareId}
                   </div>
@@ -757,7 +742,6 @@ function ResearchWorkspace({ workspace, onBack }) {
               )}
 
               <div className="share-link-box">
-
                 <input
                   type="text"
                   readOnly
@@ -774,7 +758,6 @@ function ResearchWorkspace({ workspace, onBack }) {
                 >
                   Copy Link
                 </button>
-
               </div>
 
               {shareMessage && (
@@ -784,7 +767,6 @@ function ResearchWorkspace({ workspace, onBack }) {
               )}
 
               <div className="share-panel-actions">
-
                 <button
                   type="button"
                   onClick={handleCopyShareLink}
@@ -808,16 +790,12 @@ function ResearchWorkspace({ workspace, onBack }) {
                 >
                   Done
                 </button>
-
               </div>
-
             </div>
-
           </section>
         )}
 
         <section className="research-answer-card">
-
           <div className="section-heading">
             <h2>Research Answer</h2>
           </div>
@@ -826,18 +804,15 @@ function ResearchWorkspace({ workspace, onBack }) {
             {answer ||
               "Your research answer will appear here."}
           </div>
-
         </section>
 
         {report && (
           <section className="research-answer-card">
-
             <div className="section-heading">
               <h2>Research Report</h2>
             </div>
 
             <div className="research-answer">
-
               <h3>
                 {report.title ||
                   "Research Report"}
@@ -881,18 +856,15 @@ function ResearchWorkspace({ workspace, onBack }) {
               <p>
                 Citation Count:{" "}
                 {report.source_count ||
-                  0} sources
+                  0}{" "}
+                sources
               </p>
-
             </div>
-
           </section>
         )}
 
         <section className="research-sources-card">
-
           <div className="section-heading sources-heading">
-
             <div>
               <h2>
                 Sources & Citations
@@ -914,7 +886,6 @@ function ResearchWorkspace({ workspace, onBack }) {
                 )
               }
             >
-
               <option value="all">
                 All Sources
               </option>
@@ -929,24 +900,17 @@ function ResearchWorkspace({ workspace, onBack }) {
                   </option>
                 )
               )}
-
             </select>
-
           </div>
 
           {filteredSources.length === 0 ? (
-
             <div className="empty-sources">
               No sources available yet.
             </div>
-
           ) : (
-
             <div className="source-list">
-
               {filteredSources.map(
                 (source, index) => (
-
                   <article
                     className="source-card"
                     key={
@@ -956,13 +920,11 @@ function ResearchWorkspace({ workspace, onBack }) {
                       index
                     }
                   >
-
                     <div className="source-number">
                       {index + 1}
                     </div>
 
                     <div className="source-info">
-
                       <h3>
                         {source.title ||
                           "Untitled Source"}
@@ -988,7 +950,6 @@ function ResearchWorkspace({ workspace, onBack }) {
                             "10px",
                         }}
                       >
-
                         <button
                           type="button"
                           onClick={() =>
@@ -1011,27 +972,18 @@ function ResearchWorkspace({ workspace, onBack }) {
                             Open Source ↗
                           </a>
                         )}
-
                       </div>
-
                     </div>
-
                   </article>
                 )
               )}
-
             </div>
-
           )}
-
         </section>
 
         {selectedSource && (
-
           <section className="research-answer-card">
-
             <div className="section-heading">
-
               <div
                 style={{
                   display:
@@ -1042,7 +994,6 @@ function ResearchWorkspace({ workspace, onBack }) {
                     "space-between",
                 }}
               >
-
                 <h2>
                   Source Details
                 </h2>
@@ -1057,13 +1008,10 @@ function ResearchWorkspace({ workspace, onBack }) {
                 >
                   Close
                 </button>
-
               </div>
-
             </div>
 
             <div className="research-answer">
-
               <h3>
                 {
                   selectedSource.title ||
@@ -1100,17 +1048,12 @@ function ResearchWorkspace({ workspace, onBack }) {
                   }
                 </a>
               )}
-
             </div>
-
           </section>
-
         )}
 
         <section className="research-sources-card">
-
           <div className="section-heading sources-heading">
-
             <div>
               <h2>
                 Research History
@@ -1134,33 +1077,25 @@ function ResearchWorkspace({ workspace, onBack }) {
                 Clear History
               </button>
             )}
-
           </div>
 
           {history.length === 0 ? (
-
             <div className="empty-sources">
               No research history yet.
             </div>
-
           ) : (
-
             <div className="source-list">
-
               {history.map(
                 (item) => (
-
                   <article
                     className="source-card"
                     key={item.id}
                   >
-
                     <div className="source-number">
                       🔎
                     </div>
 
                     <div className="source-info">
-
                       <h3>
                         {item.query}
                       </h3>
@@ -1190,21 +1125,14 @@ function ResearchWorkspace({ workspace, onBack }) {
                       >
                         Delete
                       </button>
-
                     </div>
-
                   </article>
                 )
               )}
-
             </div>
-
           )}
-
         </section>
-
       </main>
-
     </div>
   );
 }
