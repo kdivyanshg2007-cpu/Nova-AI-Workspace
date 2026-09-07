@@ -180,6 +180,7 @@ app.add_middleware(
 
         "http://localhost:5176",
         "http://127.0.0.1:5176",
+        "https://nova-ai-workspace-kappa.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
