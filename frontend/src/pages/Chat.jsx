@@ -37,6 +37,15 @@ function Chat({ workspace, onBack }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // =========================================================
+  // AI EVALUATION
+  // =========================================================
+
+  const [evaluationScores, setEvaluationScores] = useState({});
+  const [evaluationFeedback, setEvaluationFeedback] = useState({});
+  const [evaluatingMessageId, setEvaluatingMessageId] = useState(null);
+  const [evaluatedMessages, setEvaluatedMessages] = useState({});
+
+  // =========================================================
   // ATTACHMENTS
   // =========================================================
 
@@ -688,8 +697,12 @@ function Chat({ workspace, onBack }) {
     setSidebarOpen(true);
     clearAttachments();
     clearDocumentQA();
+    setEvaluatedMessages({});
+    setEvaluationScores({});
+    setEvaluationFeedback({});
 
     loadConversations();
+    loadEvaluations();
   }, [workspace]);
 
   useEffect(() => {
@@ -1037,6 +1050,147 @@ function Chat({ workspace, onBack }) {
     if (event.key === "Escape") {
       event.preventDefault();
       cancelRename();
+    }
+  };
+
+  // =========================================================
+  // AI EVALUATION
+  // =========================================================
+
+  const loadEvaluations = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE}/evaluations`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      if (response.status === 401) {
+        clearSession();
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        console.error(
+          "Unable to load evaluations:",
+          data.message || data.detail
+        );
+        return;
+      }
+
+      const evaluatedMap = {};
+      const scoresMap = {};
+      const feedbackMap = {};
+
+      for (const evaluation of Array.isArray(data.evaluations)
+        ? data.evaluations
+        : []) {
+        if (!evaluation.message_id) continue;
+
+        evaluatedMap[evaluation.message_id] = true;
+        scoresMap[evaluation.message_id] = evaluation.score;
+        feedbackMap[evaluation.message_id] = evaluation.feedback || "";
+      }
+
+      setEvaluatedMessages(evaluatedMap);
+      setEvaluationScores(scoresMap);
+      setEvaluationFeedback(feedbackMap);
+    } catch (evaluationLoadError) {
+      console.error(
+        "Load evaluations error:",
+        evaluationLoadError
+      );
+    }
+  };
+
+  const submitEvaluation = async (messageId) => {
+    const score = Number(evaluationScores[messageId]);
+
+    if (!Number.isInteger(score) || score < 1 || score > 5) {
+      setError("Please select a rating from 1 to 5.");
+      return;
+    }
+
+    if (!workspace?.id || !selectedConversationId || !messageId) {
+      setError("Unable to submit evaluation for this response.");
+      return;
+    }
+
+    try {
+      setEvaluatingMessageId(messageId);
+      setError("");
+
+      const response = await fetch(
+        `${API_BASE}/evaluations`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            workspace_id: workspace.id,
+            conversation_id: selectedConversationId,
+            message_id: messageId,
+            score,
+            feedback: evaluationFeedback[messageId]?.trim() || null,
+            evaluation_type: "quality",
+          }),
+        }
+      );
+
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      if (response.status === 401) {
+        clearSession();
+        setError("Your session has expired. Please login again.");
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        setError(
+          data.message ||
+            data.detail ||
+            "Unable to submit evaluation."
+        );
+        return;
+      }
+
+      setEvaluatedMessages((previous) => ({
+        ...previous,
+        [messageId]: true,
+      }));
+    } catch (evaluationError) {
+      console.error(
+        "Evaluation submission error:",
+        evaluationError
+      );
+
+      setError(
+        "Unable to submit evaluation. Please try again."
+      );
+    } finally {
+      setEvaluatingMessageId(null);
     }
   };
 
@@ -1792,6 +1946,80 @@ function Chat({ workspace, onBack }) {
                             </ReactMarkdown>
 
                           </div>
+
+                          {item.role === "assistant" && (
+                            <div className="mt-4 pt-3 border-t border-slate-200">
+
+                              {evaluatedMessages[item.id] ? (
+                                <div className="text-xs font-medium text-emerald-600">
+                                  ✓ Feedback submitted. Thank you!
+                                </div>
+                              ) : (
+                                <>
+                                  <p className="text-xs font-semibold text-slate-600 mb-2">
+                                    Rate Nova's response
+                                  </p>
+
+                                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                                    {[1, 2, 3, 4, 5].map((score) => (
+                                      <button
+                                        key={score}
+                                        type="button"
+                                        onClick={() =>
+                                          setEvaluationScores((previous) => ({
+                                            ...previous,
+                                            [item.id]: score,
+                                          }))
+                                        }
+                                        className={
+                                          "w-9 h-9 rounded-lg border text-sm font-semibold transition " +
+                                          (
+                                            Number(evaluationScores[item.id]) === score
+                                              ? "bg-slate-900 text-white border-slate-900"
+                                              : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                                          )
+                                        }
+                                        aria-label={"Rate " + score + " out of 5"}
+                                      >
+                                        {score}
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  <textarea
+                                    value={evaluationFeedback[item.id] || ""}
+                                    onChange={(event) =>
+                                      setEvaluationFeedback((previous) => ({
+                                        ...previous,
+                                        [item.id]: event.target.value,
+                                      }))
+                                    }
+                                    rows={2}
+                                    maxLength={500}
+                                    placeholder="Optional feedback about this response..."
+                                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 resize-none mb-2"
+                                  />
+
+                                  <button
+                                    type="button"
+                                    onClick={() => submitEvaluation(item.id)}
+                                    disabled={
+                                      evaluatingMessageId === item.id ||
+                                      !evaluationScores[item.id]
+                                    }
+                                    className="bg-slate-900 text-white rounded-lg px-3 py-2 text-xs font-medium hover:bg-slate-800 transition disabled:opacity-40"
+                                  >
+                                    {evaluatingMessageId === item.id
+                                      ? "Submitting..."
+                                      : "Submit Feedback"}
+                                  </button>
+                                </>
+                              )}
+
+                            </div>
+                          )}
+
+
 
                         </div>
 

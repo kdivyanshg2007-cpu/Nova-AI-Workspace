@@ -1,6 +1,6 @@
 import "./App.css";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -52,6 +52,19 @@ function App() {
     }
   });
 
+  // --------------------------------------------------
+  // RESTORE SAVED THEME ON APP LOAD
+  // --------------------------------------------------
+  useEffect(() => {
+    const savedTheme =
+      localStorage.getItem("nova_theme") || "light";
+
+    document.documentElement.setAttribute(
+      "data-nova-theme",
+      savedTheme === "dark" ? "dark" : "light"
+    );
+  }, []);
+
   const handleLogin = () => {
     setPage("dashboard");
     window.history.pushState({}, "", "/");
@@ -84,13 +97,13 @@ function App() {
 
     localStorage.setItem(
       "nova_workspace",
-      JSON.stringify(normalizedWorkspace),
+      JSON.stringify(normalizedWorkspace)
     );
 
     if (workspaceId) {
       localStorage.setItem(
         "nova_workspace_id",
-        String(workspaceId),
+        String(workspaceId)
       );
     }
 
@@ -109,34 +122,43 @@ function App() {
     window.history.pushState({}, "", "/");
   };
 
+  // --------------------------------------------------
+  // WORKSPACE TOOL NAVIGATION
+  // --------------------------------------------------
+
+  const handleOpenChat = () => {
+    setPage("chat");
+    window.history.pushState({}, "", "/chat");
+  };
+
+  const handleOpenDocument = () => {
+    setPage("document");
+    window.history.pushState({}, "", "/document");
+  };
+
+  const handleOpenCoding = () => {
+    setPage("coding");
+    window.history.pushState({}, "", "/coding");
+  };
+
+  const handleOpenResearch = () => {
+    setPage("research");
+    window.history.pushState({}, "", "/research");
+  };
+
   const handleOpenDataAnalysis = () => {
     setPage("data-analysis");
-
-    window.history.pushState(
-      {},
-      "",
-      "/data-analysis",
-    );
+    window.history.pushState({}, "", "/data-analysis");
   };
 
   const handleOpenNotes = () => {
     setPage("notes");
-
-    window.history.pushState(
-      {},
-      "",
-      "/notes",
-    );
+    window.history.pushState({}, "", "/notes");
   };
 
   const handleOpenFiles = () => {
     setPage("files");
-
-    window.history.pushState(
-      {},
-      "",
-      "/files",
-    );
+    window.history.pushState({}, "", "/files");
   };
 
   if (page === "shared-research") {
@@ -181,6 +203,10 @@ function App() {
         <Workspace
           workspace={selectedWorkspace}
           onBack={handleBackToDashboard}
+          onOpenChat={handleOpenChat}
+          onOpenDocument={handleOpenDocument}
+          onOpenCoding={handleOpenCoding}
+          onOpenResearch={handleOpenResearch}
           onOpenDataAnalysis={handleOpenDataAnalysis}
           onOpenNotes={handleOpenNotes}
           onOpenFiles={handleOpenFiles}

@@ -85,9 +85,6 @@ function ResearchWorkspace({ workspace, onBack }) {
     }
 
     setLoading(true);
-    setAnswer("");
-    setSources([]);
-    setReport(null);
     setSelectedSource(null);
     setShowSharePanel(false);
     setShareMessage("");
@@ -108,23 +105,94 @@ function ResearchWorkspace({ workspace, onBack }) {
         }
       );
 
-      const data = await response.json();
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      const backendError = String(
+        data?.detail ||
+          data?.error ||
+          data?.message ||
+          ""
+      );
+
+      const normalizedError =
+        backendError.toLowerCase();
+
+      if (response.status === 429) {
+        setAnswer(
+          "Nova Research is temporarily unavailable because the AI service quota has been reached. You can use Demo Research meanwhile."
+        );
+        return;
+      }
+
+      if (
+        normalizedError.includes("resource_exhausted") ||
+        normalizedError.includes("quota") ||
+        normalizedError.includes("rate limit") ||
+        normalizedError.includes("too many requests")
+      ) {
+        setAnswer(
+          "Nova Research is temporarily unavailable because the AI service quota has been reached. You can use Demo Research meanwhile."
+        );
+        return;
+      }
+
+      if (
+        response.status === 503 ||
+        normalizedError.includes("service unavailable") ||
+        normalizedError.includes("temporarily unavailable")
+      ) {
+        setAnswer(
+          "Nova Research is temporarily unavailable. Please try again later."
+        );
+        return;
+      }
+
+      if (response.status === 401) {
+        localStorage.removeItem("nova_token");
+        localStorage.removeItem("nova_user");
+
+        setAnswer(
+          "Your session has expired. Please login again."
+        );
+        return;
+      }
 
       if (!response.ok) {
-        throw new Error(
-          data?.detail ||
-            data?.error ||
-            data?.message ||
-            "Research request failed."
+        setAnswer(
+          backendError ||
+            `Research request failed. Status: ${response.status}`
         );
+        return;
       }
 
       if (!data.success) {
-        setAnswer(
+        const errorMessage =
           data.error ||
-            data.message ||
-            "Research agent failed."
-        );
+          data.message ||
+          "Research agent failed.";
+
+        const normalizedMessage =
+          String(errorMessage).toLowerCase();
+
+        if (
+          normalizedMessage.includes("429") ||
+          normalizedMessage.includes("resource_exhausted") ||
+          normalizedMessage.includes("quota") ||
+          normalizedMessage.includes("rate limit")
+        ) {
+          setAnswer(
+            "Nova Research is temporarily unavailable because the AI service quota has been reached. You can use Demo Research meanwhile."
+          );
+        } else {
+          setAnswer(errorMessage);
+        }
+
         return;
       }
 
@@ -153,11 +221,42 @@ function ResearchWorkspace({ workspace, onBack }) {
         reportData: researchReport,
       });
     } catch (error) {
-      setAnswer(
-        "Error: " +
-          (error?.message ||
-            "Unknown error occurred.")
+      const errorMessage = String(
+        error?.message ||
+          "Unknown error occurred."
       );
+
+      const normalizedMessage =
+        errorMessage.toLowerCase();
+
+      if (
+        normalizedMessage.includes("429") ||
+        normalizedMessage.includes("resource_exhausted") ||
+        normalizedMessage.includes("quota") ||
+        normalizedMessage.includes("rate limit")
+      ) {
+        setAnswer(
+          "Nova Research is temporarily unavailable because the AI service quota has been reached. You can use Demo Research meanwhile."
+        );
+      } else if (
+        normalizedMessage.includes("503") ||
+        normalizedMessage.includes("unavailable")
+      ) {
+        setAnswer(
+          "Nova Research is temporarily unavailable. Please try again later."
+        );
+      } else if (
+        normalizedMessage.includes("failed to fetch") ||
+        normalizedMessage.includes("networkerror")
+      ) {
+        setAnswer(
+          "Cannot connect to Nova Research backend. Please make sure the backend server is running."
+        );
+      } else {
+        setAnswer(
+          "Research error: " + errorMessage
+        );
+      }
     } finally {
       setLoading(false);
     }

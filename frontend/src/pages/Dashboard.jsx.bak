@@ -321,7 +321,7 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       }
 
       setUsageLogs(
-        data.usage || []
+        data.usage_logs || []
       );
     } catch (error) {
       console.error(

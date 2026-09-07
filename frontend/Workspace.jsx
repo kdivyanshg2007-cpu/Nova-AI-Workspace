@@ -1,6 +1,10 @@
 function Workspace({
   workspace,
   onBack,
+  onOpenChat,
+  onOpenDocument,
+  onOpenCoding,
+  onOpenResearch,
   onOpenDataAnalysis,
   onOpenNotes,
   onOpenFiles,
@@ -41,9 +45,7 @@ function Workspace({
             {/* Chats */}
             <button
               type="button"
-              onClick={() => {
-                window.location.href = "/chat";
-              }}
+              onClick={onOpenChat}
               className="border rounded-xl p-5 text-left hover:bg-gray-50 transition cursor-pointer"
             >
               <h3 className="font-semibold">
@@ -58,9 +60,7 @@ function Workspace({
             {/* Documents */}
             <button
               type="button"
-              onClick={() => {
-                window.location.href = "/document";
-              }}
+              onClick={onOpenDocument}
               className="border rounded-xl p-5 text-left hover:bg-gray-50 transition cursor-pointer"
             >
               <h3 className="font-semibold">
@@ -75,9 +75,7 @@ function Workspace({
             {/* Coding */}
             <button
               type="button"
-              onClick={() => {
-                window.location.href = "/coding";
-              }}
+              onClick={onOpenCoding}
               className="border rounded-xl p-5 text-left hover:bg-gray-50 transition cursor-pointer"
             >
               <h3 className="font-semibold">
@@ -92,9 +90,7 @@ function Workspace({
             {/* Research */}
             <button
               type="button"
-              onClick={() => {
-                window.location.href = "/research";
-              }}
+              onClick={onOpenResearch}
               className="border rounded-xl p-5 text-left hover:bg-gray-50 transition cursor-pointer"
             >
               <h3 className="font-semibold">

@@ -1,6 +1,7 @@
+css
 /* =========================================================
    NOVA AI WORKSPACE
-   FINAL APP.CSS - LIGHT + DARK THEME
+   FINAL APP.CSS - GLOBAL LIGHT + DARK THEME
    ========================================================= */
 
 :root {
@@ -151,20 +152,14 @@ html[data-nova-theme="light"] body {
 }
 
 html[data-nova-theme="light"] #root {
+  min-height: 100vh !important;
   background: #f8fafc !important;
+  color: #111827 !important;
 }
 
 /* =========================================================
-   DARK THEME - MAIN PAGE
+   DARK THEME - GLOBAL
    ========================================================= */
-
-.nova-dark-theme {
-  min-height: 100vh !important;
-  width: 100% !important;
-
-  background: #020617 !important;
-  color: #e2e8f0 !important;
-}
 
 html[data-nova-theme="dark"] {
   color-scheme: dark !important;
@@ -181,10 +176,6 @@ html[data-nova-theme="dark"] #root {
   background: #020617 !important;
   color: #e2e8f0 !important;
 }
-
-/* =========================================================
-   DARK ROUTE
-   ========================================================= */
 
 html[data-nova-theme="dark"] .nova-route {
   background: #020617 !important;
@@ -216,10 +207,20 @@ html[data-nova-theme="dark"] .nova-route-auth {
 }
 
 /* =========================================================
+   DARK - MAIN NOVA THEME WRAPPERS
+   ========================================================= */
+
+html[data-nova-theme="dark"] .nova-dark-theme {
+  min-height: 100vh !important;
+  width: 100% !important;
+  background: #020617 !important;
+  color: #e2e8f0 !important;
+}
+
+/* =========================================================
    DARK - WHITE BACKGROUNDS
    ========================================================= */
 
-.nova-dark-theme .bg-white,
 html[data-nova-theme="dark"] .bg-white {
   background-color: #0f172a !important;
   color: #e2e8f0 !important;
@@ -229,32 +230,26 @@ html[data-nova-theme="dark"] .bg-white {
    DARK - SLATE BACKGROUNDS
    ========================================================= */
 
-.nova-dark-theme .bg-slate-50,
 html[data-nova-theme="dark"] .bg-slate-50 {
   background-color: #0b1220 !important;
 }
 
-.nova-dark-theme .bg-slate-100,
 html[data-nova-theme="dark"] .bg-slate-100 {
   background-color: #020617 !important;
 }
 
-.nova-dark-theme .bg-slate-200,
 html[data-nova-theme="dark"] .bg-slate-200 {
   background-color: #1e293b !important;
 }
 
-.nova-dark-theme .bg-slate-300,
 html[data-nova-theme="dark"] .bg-slate-300 {
   background-color: #334155 !important;
 }
 
-.nova-dark-theme .bg-slate-800,
 html[data-nova-theme="dark"] .bg-slate-800 {
   background-color: #1e293b !important;
 }
 
-.nova-dark-theme .bg-slate-900,
 html[data-nova-theme="dark"] .bg-slate-900 {
   background-color: #e2e8f0 !important;
   color: #020617 !important;
@@ -264,32 +259,26 @@ html[data-nova-theme="dark"] .bg-slate-900 {
    DARK - TEXT
    ========================================================= */
 
-.nova-dark-theme .text-slate-900,
 html[data-nova-theme="dark"] .text-slate-900 {
   color: #f8fafc !important;
 }
 
-.nova-dark-theme .text-slate-800,
 html[data-nova-theme="dark"] .text-slate-800 {
   color: #e2e8f0 !important;
 }
 
-.nova-dark-theme .text-slate-700,
 html[data-nova-theme="dark"] .text-slate-700 {
   color: #cbd5e1 !important;
 }
 
-.nova-dark-theme .text-slate-600,
 html[data-nova-theme="dark"] .text-slate-600 {
   color: #94a3b8 !important;
 }
 
-.nova-dark-theme .text-slate-500,
 html[data-nova-theme="dark"] .text-slate-500 {
   color: #94a3b8 !important;
 }
 
-.nova-dark-theme .text-slate-400,
 html[data-nova-theme="dark"] .text-slate-400 {
   color: #64748b !important;
 }
@@ -298,33 +287,26 @@ html[data-nova-theme="dark"] .text-slate-400 {
    DARK - BORDERS
    ========================================================= */
 
-.nova-dark-theme .border-slate-200,
 html[data-nova-theme="dark"] .border-slate-200 {
   border-color: #334155 !important;
 }
 
-.nova-dark-theme .border-slate-300,
 html[data-nova-theme="dark"] .border-slate-300 {
   border-color: #475569 !important;
 }
 
-.nova-dark-theme .border-slate-400,
 html[data-nova-theme="dark"] .border-slate-400 {
   border-color: #64748b !important;
 }
 
-.nova-dark-theme .border-dashed,
 html[data-nova-theme="dark"] .border-dashed {
   border-color: #475569 !important;
 }
 
 /* =========================================================
-   DARK - INPUTS
+   DARK - INPUTS / SELECTS / TEXTAREAS
    ========================================================= */
 
-.nova-dark-theme input,
-.nova-dark-theme textarea,
-.nova-dark-theme select,
 html[data-nova-theme="dark"] input,
 html[data-nova-theme="dark"] textarea,
 html[data-nova-theme="dark"] select {
@@ -333,14 +315,11 @@ html[data-nova-theme="dark"] select {
   border-color: #475569 !important;
 }
 
-.nova-dark-theme input::placeholder,
-.nova-dark-theme textarea::placeholder,
 html[data-nova-theme="dark"] input::placeholder,
 html[data-nova-theme="dark"] textarea::placeholder {
   color: #64748b !important;
 }
 
-.nova-dark-theme select option,
 html[data-nova-theme="dark"] select option {
   background: #0f172a !important;
   color: #f8fafc !important;
@@ -350,13 +329,11 @@ html[data-nova-theme="dark"] select option {
    DARK - BUTTONS
    ========================================================= */
 
-.nova-dark-theme button.bg-slate-900,
 html[data-nova-theme="dark"] button.bg-slate-900 {
   background-color: #e2e8f0 !important;
   color: #020617 !important;
 }
 
-.nova-dark-theme button.bg-slate-900:hover,
 html[data-nova-theme="dark"] button.bg-slate-900:hover {
   background-color: #cbd5e1 !important;
   color: #020617 !important;
@@ -366,17 +343,14 @@ html[data-nova-theme="dark"] button.bg-slate-900:hover {
    DARK - HOVER
    ========================================================= */
 
-.nova-dark-theme .hover\:bg-slate-100:hover,
 html[data-nova-theme="dark"] .hover\:bg-slate-100:hover {
   background-color: #1e293b !important;
 }
 
-.nova-dark-theme .hover\:bg-slate-200:hover,
 html[data-nova-theme="dark"] .hover\:bg-slate-200:hover {
   background-color: #334155 !important;
 }
 
-.nova-dark-theme .hover\:bg-slate-300:hover,
 html[data-nova-theme="dark"] .hover\:bg-slate-300:hover {
   background-color: #334155 !important;
 }
@@ -385,17 +359,14 @@ html[data-nova-theme="dark"] .hover\:bg-slate-300:hover {
    DARK - RED / DELETE
    ========================================================= */
 
-.nova-dark-theme .text-red-600,
 html[data-nova-theme="dark"] .text-red-600 {
   color: #fca5a5 !important;
 }
 
-.nova-dark-theme .border-red-200,
 html[data-nova-theme="dark"] .border-red-200 {
   border-color: #7f1d1d !important;
 }
 
-.nova-dark-theme .hover\:bg-red-50:hover,
 html[data-nova-theme="dark"] .hover\:bg-red-50:hover {
   background-color: #450a0a !important;
 }
@@ -404,39 +375,84 @@ html[data-nova-theme="dark"] .hover\:bg-red-50:hover {
    DARK - GREEN
    ========================================================= */
 
-.nova-dark-theme .text-green-600,
 html[data-nova-theme="dark"] .text-green-600 {
   color: #86efac !important;
+}
+
+/* =========================================================
+   DARK - EMERALD
+   ========================================================= */
+
+html[data-nova-theme="dark"] .text-emerald-600 {
+  color: #6ee7b7 !important;
+}
+
+/* =========================================================
+   DARK - BLUE
+   ========================================================= */
+
+html[data-nova-theme="dark"] .text-blue-600 {
+  color: #93c5fd !important;
+}
+
+html[data-nova-theme="dark"] .text-blue-700 {
+  color: #bfdbfe !important;
+}
+
+/* =========================================================
+   DARK - YELLOW / AMBER
+   ========================================================= */
+
+html[data-nova-theme="dark"] .text-yellow-600,
+html[data-nova-theme="dark"] .text-amber-600 {
+  color: #fcd34d !important;
+}
+
+/* =========================================================
+   DARK - COMMON BACKGROUND UTILITIES
+   ========================================================= */
+
+html[data-nova-theme="dark"] .bg-red-50 {
+  background-color: #450a0a !important;
+}
+
+html[data-nova-theme="dark"] .bg-green-50 {
+  background-color: #052e16 !important;
+}
+
+html[data-nova-theme="dark"] .bg-blue-50 {
+  background-color: #172554 !important;
+}
+
+html[data-nova-theme="dark"] .bg-yellow-50,
+html[data-nova-theme="dark"] .bg-amber-50 {
+  background-color: #451a03 !important;
+}
+
+/* =========================================================
+   DARK - COMMON BORDERS
+   ========================================================= */
+
+html[data-nova-theme="dark"] .border-red-300 {
+  border-color: #991b1b !important;
+}
+
+html[data-nova-theme="dark"] .border-green-200 {
+  border-color: #166534 !important;
+}
+
+html[data-nova-theme="dark"] .border-blue-200 {
+  border-color: #1d4ed8 !important;
 }
 
 /* =========================================================
    DARK - DIVIDERS
    ========================================================= */
 
-.nova-dark-theme hr,
 html[data-nova-theme="dark"] hr {
   border-color: #334155 !important;
 }
 
-/* =========================================================
-   DARK - SHADOW
-   ========================================================= */
-
-.nova-dark-theme .shadow-sm,
-.nova-dark-theme .shadow-md,
-.nova-dark-theme .shadow-lg,
-html[data-nova-theme="dark"] .shadow-sm,
-html[data-nova-theme="dark"] .shadow-md,
-html[data-nova-theme="dark"] .shadow-lg {
-  box-shadow:
-    0 10px 30px rgba(0, 0, 0, 0.22) !important;
-}
-
-/* =========================================================
-   DARK - COMMON TAILWIND ELEMENTS
-   ========================================================= */
-
-.nova-dark-theme .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
 html[data-nova-theme="dark"]
   .divide-slate-200
   > :not([hidden])
@@ -445,7 +461,49 @@ html[data-nova-theme="dark"]
 }
 
 /* =========================================================
-   DARK SCROLLBAR
+   DARK - SHADOW
+   ========================================================= */
+
+html[data-nova-theme="dark"] .shadow-sm,
+html[data-nova-theme="dark"] .shadow-md,
+html[data-nova-theme="dark"] .shadow-lg {
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.22) !important;
+}
+
+/* =========================================================
+   DARK - CODE / PRE
+   ========================================================= */
+
+html[data-nova-theme="dark"] pre,
+html[data-nova-theme="dark"] code {
+  background-color: #020617 !important;
+  color: #e2e8f0 !important;
+}
+
+/* =========================================================
+   DARK - TABLES
+   ========================================================= */
+
+html[data-nova-theme="dark"] table {
+  color: #e2e8f0 !important;
+}
+
+html[data-nova-theme="dark"] th,
+html[data-nova-theme="dark"] td {
+  border-color: #334155 !important;
+}
+
+/* =========================================================
+   DARK - LINKS
+   ========================================================= */
+
+html[data-nova-theme="dark"] a {
+  color: inherit;
+}
+
+/* =========================================================
+   DARK - SCROLLBAR
    ========================================================= */
 
 html[data-nova-theme="dark"] ::-webkit-scrollbar {

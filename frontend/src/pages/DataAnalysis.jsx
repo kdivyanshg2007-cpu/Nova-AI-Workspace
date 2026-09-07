@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 function DataAnalysis({ workspace, onBack }) {
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFileName, setSelectedFileName] = useState("");
   const [loading, setLoading] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -18,6 +19,10 @@ function DataAnalysis({ workspace, onBack }) {
     workspace?.workspace_id ||
     localStorage.getItem("nova_workspace_id");
 
+  const analysisStorageKey = workspaceId
+    ? `nova_data_analysis_${workspaceId}`
+    : null;
+
   const API_BASE_URL =
     import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
@@ -25,11 +30,16 @@ function DataAnalysis({ workspace, onBack }) {
     const file = event.target.files?.[0] || null;
 
     setSelectedFile(file);
+    setSelectedFileName(file?.name || "");
     setMessage("");
     setAnalysis(null);
     setAnalysisFileId(null);
     setChartUrls({});
     setChartErrors({});
+
+    if (analysisStorageKey) {
+      localStorage.removeItem(analysisStorageKey);
+    }
   };
 
   const handleAnalyze = async () => {
@@ -99,8 +109,24 @@ function DataAnalysis({ workspace, onBack }) {
         return;
       }
 
-      setAnalysis(data.analysis || null);
-      setAnalysisFileId(data.file_id || null);
+      const nextAnalysis = data.analysis || null;
+      const nextFileId = data.file_id || null;
+
+      setAnalysis(nextAnalysis);
+      setAnalysisFileId(nextFileId);
+
+      if (analysisStorageKey && nextAnalysis && nextFileId) {
+        localStorage.setItem(
+          analysisStorageKey,
+          JSON.stringify({
+            file_id: nextFileId,
+            file_name: selectedFile.name,
+            analysis: nextAnalysis,
+            saved_at: new Date().toISOString(),
+          })
+        );
+      }
+
       setMessage("Dataset analyzed successfully ✅");
     } catch (error) {
       console.error("DATA ANALYSIS ERROR:", error);
@@ -163,9 +189,15 @@ function DataAnalysis({ workspace, onBack }) {
 
       link.href = downloadUrl;
 
-      const baseName = selectedFile?.name
-        ? selectedFile.name.replace(/\.[^/.]+$/, "")
-        : "dataset";
+      const sourceFileName =
+        selectedFile?.name ||
+        selectedFileName ||
+        "dataset";
+
+      const baseName = sourceFileName.replace(
+        /\.[^/.]+$/,
+        ""
+      );
 
       link.download = `${baseName}_analysis_report.txt`;
 
@@ -183,6 +215,40 @@ function DataAnalysis({ workspace, onBack }) {
       setReportLoading(false);
     }
   };
+
+  // ============================================================
+  // RESTORE LAST ANALYSIS
+  // ============================================================
+
+  useEffect(() => {
+    if (!analysisStorageKey) {
+      return;
+    }
+
+    try {
+      const saved = localStorage.getItem(analysisStorageKey);
+
+      if (!saved) {
+        return;
+      }
+
+      const parsed = JSON.parse(saved);
+
+      if (!parsed?.analysis || !parsed?.file_id) {
+        localStorage.removeItem(analysisStorageKey);
+        return;
+      }
+
+      setSelectedFile(null);
+      setSelectedFileName(parsed.file_name || "dataset");
+      setAnalysis(parsed.analysis);
+      setAnalysisFileId(parsed.file_id);
+      setMessage("Previous analysis restored ✅");
+    } catch (error) {
+      console.error("RESTORE DATA ANALYSIS ERROR:", error);
+      localStorage.removeItem(analysisStorageKey);
+    }
+  }, [analysisStorageKey]);
 
   // ============================================================
   // LOAD GENERATED CHARTS

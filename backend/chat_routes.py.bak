@@ -185,7 +185,6 @@ def create_chat_message(
         conversation_history=conversation_history,
         file_path=file_path,
         user_id=user_id,
-        workspace_id=workspace_id,
     )
 
     connection = get_connection()
