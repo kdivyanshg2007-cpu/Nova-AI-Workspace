@@ -23,7 +23,12 @@ function Document({ workspace, onBack }) {
     useState(null);
 
   const API_BASE_URL =
-    import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+    import.meta.env.VITE_API_URL ||
+    "http://127.0.0.1:8000";
+
+  // =========================================================
+  // LOAD DOCUMENTS
+  // =========================================================
 
   const loadDocuments = async () => {
     if (!workspace?.id) return;
@@ -65,6 +70,10 @@ function Document({ workspace, onBack }) {
   useEffect(() => {
     loadDocuments();
   }, [workspace]);
+
+  // =========================================================
+  // CREATE DOCUMENT
+  // =========================================================
 
   const createDocument = async () => {
     if (!title.trim() || !content.trim()) {
@@ -127,6 +136,10 @@ function Document({ workspace, onBack }) {
     }
   };
 
+  // =========================================================
+  // EDIT
+  // =========================================================
+
   const startEditing = (document) => {
     setEditingId(document.id);
     setEditTitle(document.title);
@@ -140,6 +153,10 @@ function Document({ workspace, onBack }) {
     setEditTitle("");
     setEditContent("");
   };
+
+  // =========================================================
+  // UPDATE
+  // =========================================================
 
   const updateDocument = async () => {
     if (
@@ -202,13 +219,16 @@ function Document({ workspace, onBack }) {
     }
   };
 
+  // =========================================================
+  // DELETE
+  // =========================================================
+
   const deleteDocument = async (
     documentId
   ) => {
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to delete this document?"
-      );
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this document?"
+    );
 
     if (!confirmed) return;
 
@@ -270,6 +290,10 @@ function Document({ workspace, onBack }) {
     }
   };
 
+  // =========================================================
+  // RAG VECTOR SEARCH
+  // =========================================================
+
   const searchDocuments = async () => {
     if (!searchQuery.trim()) {
       await loadDocuments();
@@ -281,11 +305,11 @@ function Document({ workspace, onBack }) {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/v1/documents/search?workspace_id=${
+        `${API_BASE_URL}/api/v1/documents/vector-search?workspace_id=${
           workspace.id
         }&query=${encodeURIComponent(
           searchQuery
-        )}`,
+        )}&limit=5`,
         {
           method: "GET",
           headers: {
@@ -301,36 +325,105 @@ function Document({ workspace, onBack }) {
       if (!response.ok || !data.success) {
         setMessage(
           data.message ||
-            "Search failed."
+            "Semantic search failed."
         );
         return;
       }
 
+      const chunks = data.chunks || [];
+
+      // -------------------------------------------------------
+      // Convert returned chunks into document-like objects
+      // so the existing UI can display them.
+      // -------------------------------------------------------
+
+      const uniqueDocuments = [];
+      const seenDocumentIds = new Set();
+
+      for (const chunk of chunks) {
+        const documentId =
+          chunk.document_id ?? chunk.id;
+
+        if (
+          documentId === undefined ||
+          documentId === null
+        ) {
+          continue;
+        }
+
+        if (
+          seenDocumentIds.has(documentId)
+        ) {
+          continue;
+        }
+
+        seenDocumentIds.add(
+          documentId
+        );
+
+        uniqueDocuments.push({
+          id: documentId,
+          workspace_id:
+            chunk.workspace_id ??
+            workspace.id,
+          user_id:
+            chunk.user_id ?? null,
+          title:
+            chunk.title ||
+            "Relevant document",
+          content:
+            chunk.content || "",
+          created_at:
+            chunk.created_at || null,
+          updated_at:
+            chunk.updated_at || null,
+          similarity:
+            chunk.similarity ??
+            chunk.distance ??
+            null,
+          chunk_index:
+            chunk.chunk_index ??
+            null,
+        });
+      }
+
       setDocuments(
-        data.documents || []
+        uniqueDocuments
       );
 
       if (
-        data.documents?.length ===
-        0
+        uniqueDocuments.length === 0
       ) {
         setMessage(
-          "No matching documents found."
+          "No semantically relevant documents found."
+        );
+      } else {
+        setMessage(
+          `Found ${uniqueDocuments.length} relevant document${
+            uniqueDocuments.length ===
+            1
+              ? ""
+              : "s"
+          } ✅`
         );
       }
     } catch (error) {
       console.error(
-        "Search documents error:",
+        "Vector search error:",
         error
       );
 
       setMessage(
-        "Document search nahi ho pa rahi."
+        "Semantic document search nahi ho pa rahi."
       );
     } finally {
       setSearchLoading(false);
     }
   };
+
+  // =========================================================
+  // OPEN DOCUMENT
+  // =========================================================
 
   const openDocument = (document) => {
     setSelectedDocument(document);
@@ -341,8 +434,13 @@ function Document({ workspace, onBack }) {
     setSelectedDocument(null);
   };
 
+  // =========================================================
+  // UI
+  // =========================================================
+
   return (
     <div className="min-h-screen bg-gray-100">
+
       {/* Header */}
       <header className="bg-white border-b px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
         <div className="min-w-0">
@@ -365,13 +463,15 @@ function Document({ workspace, onBack }) {
       </header>
 
       <main className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Create */}
+
+        {/* Create Document */}
         <div className="bg-white border rounded-2xl p-5 sm:p-6">
           <h2 className="text-xl sm:text-2xl font-bold">
             Create Document
           </h2>
 
           <div className="space-y-4 mt-5">
+
             <input
               type="text"
               value={title}
@@ -402,16 +502,23 @@ function Document({ workspace, onBack }) {
                 ? "Creating..."
                 : "Create Document"}
             </button>
+
           </div>
         </div>
 
-        {/* Search */}
+        {/* Semantic Search */}
         <div className="bg-white border rounded-2xl p-5 sm:p-6">
+
           <h2 className="text-xl font-semibold">
-            Search Documents
+            Semantic Document Search
           </h2>
 
+          <p className="text-sm text-gray-500 mt-1">
+            Search using meaning, not just exact keywords.
+          </p>
+
           <div className="flex flex-col sm:flex-row gap-3 mt-4">
+
             <input
               type="text"
               value={searchQuery}
@@ -428,14 +535,16 @@ function Document({ workspace, onBack }) {
                   searchDocuments();
                 }
               }}
-              placeholder="Search by title or content..."
+              placeholder="Ask something about your documents..."
               className="flex-1 border rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-black"
             />
 
             <button
               type="button"
               onClick={searchDocuments}
-              disabled={searchLoading}
+              disabled={
+                searchLoading
+              }
               className="bg-black text-white px-5 py-3 rounded-lg disabled:opacity-50"
             >
               {searchLoading
@@ -454,6 +563,7 @@ function Document({ workspace, onBack }) {
             >
               Clear
             </button>
+
           </div>
         </div>
 
@@ -463,6 +573,9 @@ function Document({ workspace, onBack }) {
             className={`text-sm px-2 ${
               message.includes(
                 "successfully"
+              ) ||
+              message.includes(
+                "Found"
               )
                 ? "text-green-600"
                 : "text-gray-600"
@@ -474,7 +587,9 @@ function Document({ workspace, onBack }) {
 
         {/* Documents */}
         <div className="bg-white border rounded-2xl p-5 sm:p-6">
+
           <div className="flex items-center justify-between gap-3">
+
             <div>
               <h2 className="text-xl font-semibold">
                 Your Documents
@@ -491,6 +606,7 @@ function Document({ workspace, onBack }) {
                 ? "document"
                 : "documents"}
             </span>
+
           </div>
 
           {documents.length === 0 ? (
@@ -499,15 +615,19 @@ function Document({ workspace, onBack }) {
             </p>
           ) : (
             <div className="space-y-3 mt-4">
+
               {documents.map(
                 (document) => (
                   <div
                     key={document.id}
                     className="border rounded-xl p-4"
                   >
+
                     {editingId ===
                     document.id ? (
+
                       <div className="space-y-4">
+
                         <input
                           type="text"
                           value={
@@ -535,6 +655,7 @@ function Document({ workspace, onBack }) {
                         />
 
                         <div className="flex flex-wrap gap-3">
+
                           <button
                             type="button"
                             onClick={
@@ -562,11 +683,14 @@ function Document({ workspace, onBack }) {
                           >
                             Cancel
                           </button>
+
                         </div>
                       </div>
+
                     ) : (
+
                       <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
-                        {/* Clickable document */}
+
                         <button
                           type="button"
                           onClick={() =>
@@ -576,6 +700,7 @@ function Document({ workspace, onBack }) {
                           }
                           className="flex-1 text-left min-w-0"
                         >
+
                           <h3 className="font-semibold text-gray-900 break-words">
                             {document.title}
                           </h3>
@@ -584,13 +709,29 @@ function Document({ workspace, onBack }) {
                             {document.content}
                           </p>
 
+                          {document.similarity !==
+                            null &&
+                            document.similarity !==
+                              undefined && (
+                              <p className="text-xs text-gray-400 mt-2">
+                                Similarity:{" "}
+                                {typeof document.similarity ===
+                                "number"
+                                  ? document.similarity.toFixed(
+                                      4
+                                    )
+                                  : document.similarity}
+                              </p>
+                            )}
+
                           <p className="text-xs text-gray-400 mt-3">
                             Click to open →
                           </p>
+
                         </button>
 
-                        {/* Actions */}
                         <div className="flex flex-wrap gap-2 shrink-0">
+
                           <button
                             type="button"
                             onClick={() =>
@@ -621,30 +762,39 @@ function Document({ workspace, onBack }) {
                               ? "Deleting..."
                               : "Delete"}
                           </button>
+
                         </div>
+
                       </div>
                     )}
+
                   </div>
                 )
               )}
+
             </div>
           )}
+
         </div>
       </main>
 
       {/* Document Preview Modal */}
       {selectedDocument && (
+
         <div
           className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
           onClick={closeDocument}
         >
+
           <div
             className="bg-white w-full max-w-3xl max-h-[85vh] rounded-2xl shadow-xl overflow-hidden"
             onClick={(e) =>
               e.stopPropagation()
             }
           >
+
             <div className="border-b px-5 sm:px-6 py-4 flex items-center justify-between gap-4">
+
               <h2 className="text-lg sm:text-xl font-bold text-gray-900 break-words">
                 {selectedDocument.title}
               </h2>
@@ -656,9 +806,11 @@ function Document({ workspace, onBack }) {
               >
                 Close
               </button>
+
             </div>
 
             <div className="p-5 sm:p-6 overflow-y-auto max-h-[70vh]">
+
               <div className="text-sm text-gray-700 whitespace-pre-wrap break-words leading-7">
                 {selectedDocument.content}
               </div>
@@ -680,10 +832,14 @@ function Document({ workspace, onBack }) {
                   ).toLocaleString()}
                 </p>
               )}
+
             </div>
+
           </div>
+
         </div>
       )}
+
     </div>
   );
 }
