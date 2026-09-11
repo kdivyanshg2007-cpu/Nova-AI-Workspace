@@ -1,5 +1,129 @@
 from database import get_connection
 
+from rag_service import embed_document_chunks
+
+
+# =========================================================
+# RAG — DOCUMENT CHUNKING
+# =========================================================
+
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 200
+
+
+def split_text_into_chunks(
+    text: str,
+    chunk_size: int = CHUNK_SIZE,
+    chunk_overlap: int = CHUNK_OVERLAP
+) -> list[str]:
+    """Split document text into overlapping chunks for RAG."""
+
+    text = text.strip()
+
+    if not text:
+        return []
+
+    if chunk_size <= 0:
+        chunk_size = CHUNK_SIZE
+
+    if chunk_overlap < 0:
+        chunk_overlap = 0
+
+    if chunk_overlap >= chunk_size:
+        chunk_overlap = chunk_size // 5
+
+    chunks = []
+
+    start = 0
+    text_length = len(text)
+
+    while start < text_length:
+        end = min(start + chunk_size, text_length)
+
+        chunk = text[start:end].strip()
+
+        if chunk:
+            chunks.append(chunk)
+
+        if end >= text_length:
+            break
+
+        start = end - chunk_overlap
+
+    return chunks
+
+
+def create_document_chunks(
+    document_id: int,
+    workspace_id: int,
+    user_id: int,
+    content: str,
+    cursor
+):
+    """Create and store RAG chunks for a document."""
+
+    chunks = split_text_into_chunks(content)
+
+    for chunk_index, chunk_content in enumerate(chunks):
+        cursor.execute(
+            """
+            INSERT INTO document_chunks (
+                document_id,
+                workspace_id,
+                user_id,
+                chunk_index,
+                content
+            )
+            VALUES (%s, %s, %s, %s, %s);
+            """,
+            (
+                document_id,
+                workspace_id,
+                user_id,
+                chunk_index,
+                chunk_content,
+            ),
+        )
+
+    return len(chunks)
+
+
+def recreate_document_chunks(
+    document_id: int,
+    workspace_id: int,
+    user_id: int,
+    content: str,
+    cursor
+):
+    """Delete old chunks and create fresh chunks after document update."""
+
+    cursor.execute(
+        """
+        DELETE FROM document_chunks
+        WHERE document_id = %s
+          AND workspace_id = %s
+          AND user_id = %s;
+        """,
+        (
+            document_id,
+            workspace_id,
+            user_id,
+        ),
+    )
+
+    return create_document_chunks(
+        document_id=document_id,
+        workspace_id=workspace_id,
+        user_id=user_id,
+        content=content,
+        cursor=cursor,
+    )
+
+
+# =========================================================
+# DOCUMENT CRUD
+# =========================================================
+
 
 def create_document(
     workspace_id: int,
@@ -7,7 +131,7 @@ def create_document(
     title: str,
     content: str
 ):
-    """Create a document inside a workspace."""
+    """Create a document and generate RAG chunks + embeddings."""
 
     if workspace_id <= 0:
         return {
@@ -34,17 +158,68 @@ def create_document(
     cursor = connection.cursor()
 
     try:
+        # =====================================================
+        # CREATE DOCUMENT
+        # =====================================================
+
         cursor.execute(
             """
-            INSERT INTO documents (workspace_id, user_id, title, content)
+            INSERT INTO documents (
+                workspace_id,
+                user_id,
+                title,
+                content
+            )
             VALUES (%s, %s, %s, %s)
-            RETURNING id, workspace_id, user_id, title, content, created_at, updated_at;
+            RETURNING
+                id,
+                workspace_id,
+                user_id,
+                title,
+                content,
+                created_at,
+                updated_at;
             """,
-            (workspace_id, user_id, title, content),
+            (
+                workspace_id,
+                user_id,
+                title,
+                content,
+            ),
         )
 
         document = cursor.fetchone()
+
+        # =====================================================
+        # CREATE RAG CHUNKS
+        # =====================================================
+
+        chunk_count = create_document_chunks(
+            document_id=document[0],
+            workspace_id=document[1],
+            user_id=document[2],
+            content=document[4],
+            cursor=cursor,
+        )
+
+        # Save the document + chunks first.
         connection.commit()
+
+        # =====================================================
+        # GENERATE EMBEDDINGS
+        # =====================================================
+
+        try:
+            embedded_chunk_count = embed_document_chunks(
+                document_id=document[0]
+            )
+        except Exception as embedding_error:
+            print(
+                "RAG EMBEDDING ERROR:",
+                repr(embedding_error),
+            )
+
+            embedded_chunk_count = 0
 
         return {
             "success": True,
@@ -57,6 +232,8 @@ def create_document(
                 "created_at": document[5],
                 "updated_at": document[6],
             },
+            "chunk_count": chunk_count,
+            "embedded_chunk_count": embedded_chunk_count,
         }
 
     except Exception as e:
@@ -118,7 +295,12 @@ def get_workspace_documents(
             LIMIT %s
             OFFSET %s;
             """,
-            (workspace_id, user_id, limit, offset),
+            (
+                workspace_id,
+                user_id,
+                limit,
+                offset,
+            ),
         )
 
         rows = cursor.fetchall()
@@ -160,7 +342,7 @@ def update_document(
     title: str,
     content: str
 ):
-    """Update a document owned by the current user."""
+    """Update a document and recreate RAG chunks + embeddings."""
 
     if document_id <= 0:
         return {
@@ -187,10 +369,15 @@ def update_document(
     cursor = connection.cursor()
 
     try:
+        # =====================================================
+        # UPDATE DOCUMENT
+        # =====================================================
+
         cursor.execute(
             """
             UPDATE documents
-            SET title = %s,
+            SET
+                title = %s,
                 content = %s,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
@@ -204,19 +391,54 @@ def update_document(
                 created_at,
                 updated_at;
             """,
-            (title, content, document_id, user_id),
+            (
+                title,
+                content,
+                document_id,
+                user_id,
+            ),
         )
 
         document = cursor.fetchone()
 
         if document is None:
             connection.rollback()
+
             return {
                 "success": False,
                 "message": "Document not found or access denied.",
             }
 
+        # =====================================================
+        # RECREATE RAG CHUNKS
+        # =====================================================
+
+        chunk_count = recreate_document_chunks(
+            document_id=document[0],
+            workspace_id=document[1],
+            user_id=document[2],
+            content=document[4],
+            cursor=cursor,
+        )
+
+        # Save updated document + fresh chunks.
         connection.commit()
+
+        # =====================================================
+        # GENERATE NEW EMBEDDINGS
+        # =====================================================
+
+        try:
+            embedded_chunk_count = embed_document_chunks(
+                document_id=document[0]
+            )
+        except Exception as embedding_error:
+            print(
+                "RAG EMBEDDING ERROR:",
+                repr(embedding_error),
+            )
+
+            embedded_chunk_count = 0
 
         return {
             "success": True,
@@ -229,6 +451,8 @@ def update_document(
                 "created_at": document[5],
                 "updated_at": document[6],
             },
+            "chunk_count": chunk_count,
+            "embedded_chunk_count": embedded_chunk_count,
         }
 
     except Exception as e:
@@ -267,13 +491,17 @@ def delete_document(
               AND user_id = %s
             RETURNING id;
             """,
-            (document_id, user_id),
+            (
+                document_id,
+                user_id,
+            ),
         )
 
         deleted_document = cursor.fetchone()
 
         if deleted_document is None:
             connection.rollback()
+
             return {
                 "success": False,
                 "message": "Document not found or access denied.",
@@ -330,7 +558,10 @@ def get_document(
             WHERE id = %s
               AND user_id = %s;
             """,
-            (document_id, user_id),
+            (
+                document_id,
+                user_id,
+            ),
         )
 
         document = cursor.fetchone()
@@ -411,7 +642,12 @@ def search_documents(
               )
             ORDER BY created_at DESC;
             """,
-            (workspace_id, user_id, search_pattern, search_pattern),
+            (
+                workspace_id,
+                user_id,
+                search_pattern,
+                search_pattern,
+            ),
         )
 
         rows = cursor.fetchall()

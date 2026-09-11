@@ -1,3 +1,6 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+
+
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
 
@@ -55,6 +58,56 @@ CREATE TABLE IF NOT EXISTS conversations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE IF NOT EXISTS documents (
+    id SERIAL PRIMARY KEY,
+
+    workspace_id INTEGER NOT NULL
+        REFERENCES workspaces(id)
+        ON DELETE CASCADE,
+
+    user_id INTEGER NOT NULL
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    title VARCHAR(200) NOT NULL,
+
+    content TEXT NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- =========================================================
+-- RAG — DOCUMENT CHUNKS + EMBEDDINGS
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS document_chunks (
+    id SERIAL PRIMARY KEY,
+
+    document_id INTEGER NOT NULL
+        REFERENCES documents(id)
+        ON DELETE CASCADE,
+
+    workspace_id INTEGER NOT NULL
+        REFERENCES workspaces(id)
+        ON DELETE CASCADE,
+
+    user_id INTEGER NOT NULL
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    chunk_index INTEGER NOT NULL,
+
+    content TEXT NOT NULL,
+
+    embedding vector(768),
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 
