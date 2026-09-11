@@ -1,6 +1,9 @@
 from database import get_connection
 
-from rag_service import embed_document_chunks
+from rag_service import (
+    embed_document_chunks,
+    search_similar_chunks,
+)
 
 
 # =========================================================
@@ -38,7 +41,10 @@ def split_text_into_chunks(
     text_length = len(text)
 
     while start < text_length:
-        end = min(start + chunk_size, text_length)
+        end = min(
+            start + chunk_size,
+            text_length
+        )
 
         chunk = text[start:end].strip()
 
@@ -118,6 +124,71 @@ def recreate_document_chunks(
         content=content,
         cursor=cursor,
     )
+
+
+# =========================================================
+# RAG — VECTOR SEARCH
+# =========================================================
+
+def search_document_chunks(
+    workspace_id: int,
+    user_id: int,
+    query: str,
+    limit: int = 5
+):
+    """
+    Search document chunks using Gemini embeddings
+    and PostgreSQL pgvector similarity search.
+    """
+
+    if workspace_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid workspace_id.",
+            "chunks": [],
+        }
+
+    if user_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid user_id.",
+            "chunks": [],
+        }
+
+    query = str(query or "").strip()
+
+    if not query:
+        return {
+            "success": False,
+            "message": "Search query cannot be empty.",
+            "chunks": [],
+        }
+
+    try:
+        chunks = search_similar_chunks(
+            workspace_id=workspace_id,
+            user_id=user_id,
+            query=query,
+            limit=limit,
+        )
+
+        return {
+            "success": True,
+            "query": query,
+            "chunks": chunks,
+        }
+
+    except Exception as e:
+        print(
+            "RAG VECTOR SEARCH ERROR:",
+            repr(e),
+        )
+
+        return {
+            "success": False,
+            "message": str(e),
+            "chunks": [],
+        }
 
 
 # =========================================================
@@ -202,7 +273,7 @@ def create_document(
             cursor=cursor,
         )
 
-        # Save the document + chunks first.
+        # Save document + chunks first.
         connection.commit()
 
         # =====================================================
@@ -421,7 +492,6 @@ def update_document(
             cursor=cursor,
         )
 
-        # Save updated document + fresh chunks.
         connection.commit()
 
         # =====================================================

@@ -43,6 +43,7 @@ from document_routes import (
     delete_document,
     get_document,
     search_documents,
+    search_document_chunks,
 )
 
 from chat_routes import (
@@ -180,6 +181,7 @@ app.add_middleware(
 
         "http://localhost:5176",
         "http://127.0.0.1:5176",
+
         "https://nova-ai-workspace-kappa.vercel.app",
     ],
     allow_credentials=True,
@@ -437,6 +439,47 @@ def search_workspace_documents(
         workspace_id=workspace_id,
         user_id=current_user["user_id"],
         query=query,
+    )
+
+
+# =========================================================
+# RAG — VECTOR SEARCH
+# =========================================================
+
+@app.get(
+    "/api/v1/documents/vector-search"
+)
+def vector_search_documents(
+    workspace_id: int,
+    query: str,
+    limit: int = 5,
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    """
+    Search document chunks using semantic
+    vector similarity.
+    """
+
+    if not verify_workspace_ownership(
+        workspace_id=workspace_id,
+        user_id=current_user["user_id"],
+    ):
+        return {
+            "success": False,
+            "message": (
+                "Workspace not found or "
+                "access denied."
+            ),
+            "chunks": [],
+        }
+
+    return search_document_chunks(
+        workspace_id=workspace_id,
+        user_id=current_user["user_id"],
+        query=query,
+        limit=limit,
     )
 
 
@@ -1525,7 +1568,7 @@ def get_data_analysis_chart(
 
     except Exception as error:
         print(
-            "DATA ANALYSIS CHART ERROR:",
+            "AI DATA ANALYSIS CHART ERROR:",
             repr(error),
         )
 
@@ -2188,7 +2231,7 @@ def export_research_xlsx(
     ),
 ):
     """
-    Generate and return a research report as a XLSX file.
+    Generate and return a research report as an XLSX file.
     """
 
     report = request.report or {}
