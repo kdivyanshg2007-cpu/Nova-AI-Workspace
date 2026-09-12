@@ -1,7 +1,8 @@
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from database import get_connection
 from dependencies import get_current_user
@@ -14,34 +15,88 @@ router = APIRouter(
 
 
 # =========================================================
-# PYDANTIC MODELS
+# PYDANTIC MODELS / INPUT VALIDATION
 # =========================================================
 
 class NoteCreate(BaseModel):
-    title: str
-    content: str
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+    )
+
+    content: str = Field(
+        ...,
+        min_length=1,
+        max_length=10000,
+    )
+
     workspace_id: int | None = None
 
 
 class NoteUpdate(BaseModel):
-    title: str | None = None
-    content: str | None = None
+    title: str | None = Field(
+        None,
+        min_length=1,
+        max_length=200,
+    )
+
+    content: str | None = Field(
+        None,
+        min_length=1,
+        max_length=10000,
+    )
 
 
 class TaskCreate(BaseModel):
-    title: str
-    description: str | None = None
-    priority: str = "medium"
-    status: str = "pending"
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+    )
+
+    description: str | None = Field(
+        None,
+        max_length=10000,
+    )
+
+    priority: Literal["high", "medium", "low"] = "medium"
+
+    status: Literal[
+        "pending",
+        "in_progress",
+        "completed",
+    ] = "pending"
+
     deadline: datetime | None = None
+
     workspace_id: int | None = None
 
 
 class TaskUpdate(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    priority: str | None = None
-    status: str | None = None
+    title: str | None = Field(
+        None,
+        min_length=1,
+        max_length=200,
+    )
+
+    description: str | None = Field(
+        None,
+        max_length=10000,
+    )
+
+    priority: Literal[
+        "high",
+        "medium",
+        "low",
+    ] | None = None
+
+    status: Literal[
+        "pending",
+        "in_progress",
+        "completed",
+    ] | None = None
+
     deadline: datetime | None = None
 
 
@@ -88,11 +143,12 @@ def create_note(
             "note": created_note,
         }
 
-    except Exception as error:
+    except Exception:
         connection.rollback()
+
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to create note: {str(error)}",
+            detail="Failed to create note.",
         )
 
     finally:
@@ -121,8 +177,12 @@ def get_notes(
                   AND workspace_id = %s
                 ORDER BY updated_at DESC;
                 """,
-                (user_id, workspace_id),
+                (
+                    user_id,
+                    workspace_id,
+                ),
             )
+
         else:
             cursor.execute(
                 """
@@ -183,6 +243,7 @@ def update_note(
 
         if updated_note is None:
             connection.rollback()
+
             raise HTTPException(
                 status_code=404,
                 detail="Note not found.",
@@ -198,11 +259,12 @@ def update_note(
     except HTTPException:
         raise
 
-    except Exception as error:
+    except Exception:
         connection.rollback()
+
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to update note: {str(error)}",
+            detail="Failed to update note.",
         )
 
     finally:
@@ -228,13 +290,17 @@ def delete_note(
               AND user_id = %s
             RETURNING id;
             """,
-            (note_id, user_id),
+            (
+                note_id,
+                user_id,
+            ),
         )
 
         deleted_note = cursor.fetchone()
 
         if deleted_note is None:
             connection.rollback()
+
             raise HTTPException(
                 status_code=404,
                 detail="Note not found.",
@@ -250,11 +316,12 @@ def delete_note(
     except HTTPException:
         raise
 
-    except Exception as error:
+    except Exception:
         connection.rollback()
+
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to delete note: {str(error)}",
+            detail="Failed to delete note.",
         )
 
     finally:
@@ -311,11 +378,12 @@ def create_task(
             "task": created_task,
         }
 
-    except Exception as error:
+    except Exception:
         connection.rollback()
+
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to create task: {str(error)}",
+            detail="Failed to create task.",
         )
 
     finally:
@@ -326,7 +394,11 @@ def create_task(
 @router.get("/tasks")
 def get_tasks(
     workspace_id: int | None = None,
-    status: str | None = None,
+    status: Literal[
+        "pending",
+        "in_progress",
+        "completed",
+    ] | None = None,
     current_user=Depends(get_current_user),
 ):
     user_id = current_user["user_id"]
@@ -364,7 +436,10 @@ def get_tasks(
                 updated_at DESC;
         """
 
-        cursor.execute(query, tuple(params))
+        cursor.execute(
+            query,
+            tuple(params),
+        )
 
         tasks = cursor.fetchall()
 
@@ -420,6 +495,7 @@ def update_task(
 
         if updated_task is None:
             connection.rollback()
+
             raise HTTPException(
                 status_code=404,
                 detail="Task not found.",
@@ -435,11 +511,12 @@ def update_task(
     except HTTPException:
         raise
 
-    except Exception as error:
+    except Exception:
         connection.rollback()
+
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to update task: {str(error)}",
+            detail="Failed to update task.",
         )
 
     finally:
@@ -465,13 +542,17 @@ def delete_task(
               AND user_id = %s
             RETURNING id;
             """,
-            (task_id, user_id),
+            (
+                task_id,
+                user_id,
+            ),
         )
 
         deleted_task = cursor.fetchone()
 
         if deleted_task is None:
             connection.rollback()
+
             raise HTTPException(
                 status_code=404,
                 detail="Task not found.",
@@ -487,11 +568,12 @@ def delete_task(
     except HTTPException:
         raise
 
-    except Exception as error:
+    except Exception:
         connection.rollback()
+
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to delete task: {str(error)}",
+            detail="Failed to delete task.",
         )
 
     finally:
