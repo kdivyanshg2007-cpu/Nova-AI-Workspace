@@ -184,6 +184,7 @@ app.add_middleware(
 
         "https://nova-ai-workspace-kappa.vercel.app",
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1810,7 +1811,7 @@ def delete_workspace_file(
     ),
 ):
     """
-    Delete a file belonging to the authenticated user.
+    Delete a file belonging to the user's workspace.
     """
 
     if file_id <= 0:
