@@ -24,11 +24,18 @@ def create_workspace(user_id: int, name: str):
     try:
         cursor.execute(
             """
-            INSERT INTO workspaces (user_id, name)
-            VALUES (%s, %s)
-            RETURNING id, user_id, name, created_at;
+            INSERT INTO workspaces (
+                user_id,
+                name,
+                is_archived
+            )
+            VALUES (%s, %s, FALSE)
+            RETURNING id, user_id, name, created_at, is_archived;
             """,
-            (user_id, name),
+            (
+                user_id,
+                name,
+            ),
         )
 
         workspace = cursor.fetchone()
@@ -41,6 +48,7 @@ def create_workspace(user_id: int, name: str):
                 "user_id": workspace[1],
                 "name": workspace[2],
                 "created_at": workspace[3],
+                "is_archived": workspace[4],
             },
         }
 
@@ -57,7 +65,10 @@ def create_workspace(user_id: int, name: str):
         connection.close()
 
 
-def get_user_workspaces(user_id: int):
+def get_user_workspaces(
+    user_id: int,
+    include_archived: bool = False
+):
     """Get all workspaces belonging to a user."""
 
     if user_id <= 0:
@@ -70,15 +81,37 @@ def get_user_workspaces(user_id: int):
     cursor = connection.cursor()
 
     try:
-        cursor.execute(
-            """
-            SELECT id, user_id, name, created_at
-            FROM workspaces
-            WHERE user_id = %s
-            ORDER BY created_at DESC;
-            """,
-            (user_id,),
-        )
+        if include_archived:
+            cursor.execute(
+                """
+                SELECT
+                    id,
+                    user_id,
+                    name,
+                    created_at,
+                    is_archived
+                FROM workspaces
+                WHERE user_id = %s
+                ORDER BY created_at DESC;
+                """,
+                (user_id,),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT
+                    id,
+                    user_id,
+                    name,
+                    created_at,
+                    is_archived
+                FROM workspaces
+                WHERE user_id = %s
+                  AND is_archived = FALSE
+                ORDER BY created_at DESC;
+                """,
+                (user_id,),
+            )
 
         rows = cursor.fetchall()
 
@@ -88,6 +121,7 @@ def get_user_workspaces(user_id: int):
                 "user_id": row[1],
                 "name": row[2],
                 "created_at": row[3],
+                "is_archived": row[4],
             }
             for row in rows
         ]
@@ -112,7 +146,7 @@ def verify_workspace_ownership(
     workspace_id: int,
     user_id: int
 ):
-    """Check whether a workspace belongs to the current user."""
+    """Check whether an active workspace belongs to the current user."""
 
     if workspace_id <= 0:
         return False
@@ -129,9 +163,13 @@ def verify_workspace_ownership(
             SELECT id
             FROM workspaces
             WHERE id = %s
-              AND user_id = %s;
+              AND user_id = %s
+              AND is_archived = FALSE;
             """,
-            (workspace_id, user_id),
+            (
+                workspace_id,
+                user_id,
+            ),
         )
 
         workspace = cursor.fetchone()
@@ -151,7 +189,7 @@ def rename_workspace(
     user_id: int,
     name: str
 ):
-    """Rename a workspace owned by the current user."""
+    """Rename an active workspace owned by the current user."""
 
     if workspace_id <= 0:
         return {
@@ -183,7 +221,13 @@ def rename_workspace(
             SET name = %s
             WHERE id = %s
               AND user_id = %s
-            RETURNING id, user_id, name, created_at;
+              AND is_archived = FALSE
+            RETURNING
+                id,
+                user_id,
+                name,
+                created_at,
+                is_archived;
             """,
             (
                 name,
@@ -199,7 +243,10 @@ def rename_workspace(
 
             return {
                 "success": False,
-                "message": "Workspace not found or access denied."
+                "message": (
+                    "Workspace not found, archived, "
+                    "or access denied."
+                )
             }
 
         connection.commit()
@@ -211,6 +258,171 @@ def rename_workspace(
                 "user_id": workspace[1],
                 "name": workspace[2],
                 "created_at": workspace[3],
+                "is_archived": workspace[4],
+            },
+        }
+
+    except Exception as e:
+        connection.rollback()
+
+        return {
+            "success": False,
+            "message": str(e),
+        }
+
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def archive_workspace(
+    workspace_id: int,
+    user_id: int
+):
+    """Archive an active workspace."""
+
+    if workspace_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid workspace_id."
+        }
+
+    if user_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid user_id."
+        }
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            """
+            UPDATE workspaces
+            SET is_archived = TRUE
+            WHERE id = %s
+              AND user_id = %s
+              AND is_archived = FALSE
+            RETURNING
+                id,
+                user_id,
+                name,
+                created_at,
+                is_archived;
+            """,
+            (
+                workspace_id,
+                user_id,
+            ),
+        )
+
+        workspace = cursor.fetchone()
+
+        if workspace is None:
+            connection.rollback()
+
+            return {
+                "success": False,
+                "message": (
+                    "Workspace not found, "
+                    "already archived, or access denied."
+                ),
+            }
+
+        connection.commit()
+
+        return {
+            "success": True,
+            "message": "Workspace archived successfully.",
+            "workspace": {
+                "id": workspace[0],
+                "user_id": workspace[1],
+                "name": workspace[2],
+                "created_at": workspace[3],
+                "is_archived": workspace[4],
+            },
+        }
+
+    except Exception as e:
+        connection.rollback()
+
+        return {
+            "success": False,
+            "message": str(e),
+        }
+
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def unarchive_workspace(
+    workspace_id: int,
+    user_id: int
+):
+    """Restore an archived workspace."""
+
+    if workspace_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid workspace_id."
+        }
+
+    if user_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid user_id."
+        }
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            """
+            UPDATE workspaces
+            SET is_archived = FALSE
+            WHERE id = %s
+              AND user_id = %s
+              AND is_archived = TRUE
+            RETURNING
+                id,
+                user_id,
+                name,
+                created_at,
+                is_archived;
+            """,
+            (
+                workspace_id,
+                user_id,
+            ),
+        )
+
+        workspace = cursor.fetchone()
+
+        if workspace is None:
+            connection.rollback()
+
+            return {
+                "success": False,
+                "message": (
+                    "Archived workspace not found "
+                    "or access denied."
+                ),
+            }
+
+        connection.commit()
+
+        return {
+            "success": True,
+            "message": "Workspace restored successfully.",
+            "workspace": {
+                "id": workspace[0],
+                "user_id": workspace[1],
+                "name": workspace[2],
+                "created_at": workspace[3],
+                "is_archived": workspace[4],
             },
         }
 
@@ -254,7 +466,10 @@ def delete_workspace(
             DELETE FROM workspaces
             WHERE id = %s
               AND user_id = %s
-            RETURNING id, name;
+            RETURNING
+                id,
+                name,
+                is_archived;
             """,
             (
                 workspace_id,
@@ -280,6 +495,7 @@ def delete_workspace(
             "workspace": {
                 "id": workspace[0],
                 "name": workspace[1],
+                "is_archived": workspace[2],
             },
         }
 

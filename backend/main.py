@@ -33,6 +33,8 @@ from workspace_routes import (
     get_user_workspaces,
     verify_workspace_ownership,
     rename_workspace,
+    archive_workspace,
+    unarchive_workspace,
     delete_workspace,
 )
 
@@ -314,6 +316,46 @@ def rename_existing_workspace(
         workspace_id=workspace_id,
         user_id=current_user["user_id"],
         name=name,
+    )
+
+
+# =========================================================
+# ARCHIVE WORKSPACE
+# =========================================================
+
+@app.put(
+    "/api/v1/workspaces/{workspace_id}/archive",
+    response_model=APIResponse,
+)
+def archive_existing_workspace(
+    workspace_id: int,
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    return archive_workspace(
+        workspace_id=workspace_id,
+        user_id=current_user["user_id"],
+    )
+
+
+# =========================================================
+# UNARCHIVE WORKSPACE
+# =========================================================
+
+@app.put(
+    "/api/v1/workspaces/{workspace_id}/unarchive",
+    response_model=APIResponse,
+)
+def unarchive_existing_workspace(
+    workspace_id: int,
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    return unarchive_workspace(
+        workspace_id=workspace_id,
+        user_id=current_user["user_id"],
     )
 
 
