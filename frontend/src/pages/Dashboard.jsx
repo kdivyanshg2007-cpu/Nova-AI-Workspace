@@ -11,7 +11,11 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
   const [message, setMessage] = useState("");
 
   const [loading, setLoading] = useState(false);
+
   const [workspaces, setWorkspaces] = useState([]);
+  const [archivedWorkspaces, setArchivedWorkspaces] =
+    useState([]);
+
   const [loadingWorkspaces, setLoadingWorkspaces] =
     useState(true);
 
@@ -26,6 +30,15 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
 
   const [deletingWorkspaceId, setDeletingWorkspaceId] =
     useState(null);
+
+  const [archivingWorkspaceId, setArchivingWorkspaceId] =
+    useState(null);
+
+  const [restoringWorkspaceId, setRestoringWorkspaceId] =
+    useState(null);
+
+  const [showArchived, setShowArchived] =
+    useState(false);
 
   const [preferences, setPreferences] = useState(() => ({
     language:
@@ -90,6 +103,7 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     localStorage.removeItem("nova_user");
 
     setWorkspaces([]);
+    setArchivedWorkspaces([]);
 
     setMessage(
       "Your session has expired. Please login again."
@@ -342,7 +356,7 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       setMessage("");
 
       const response = await fetch(
-        `${API_BASE_URL}/api/v1/workspaces`,
+        `${API_BASE_URL}/api/v1/workspaces?include_archived=true`,
         {
           method: "GET",
           headers: {
@@ -387,12 +401,29 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       const loadedWorkspaces =
         data.workspaces || [];
 
+      const activeWorkspaces =
+        loadedWorkspaces.filter(
+          (workspace) =>
+            !workspace.is_archived
+        );
+
+      const loadedArchivedWorkspaces =
+        loadedWorkspaces.filter(
+          (workspace) =>
+            workspace.is_archived
+        );
+
       setWorkspaces(
-        loadedWorkspaces
+        activeWorkspaces
+      );
+
+      setArchivedWorkspaces(
+        loadedArchivedWorkspaces
       );
 
       if (
-        loadedWorkspaces.length === 0
+        activeWorkspaces.length === 0 &&
+        loadedArchivedWorkspaces.length === 0
       ) {
         setMessage(
           "You don't have any workspaces yet. Create one below."
@@ -461,16 +492,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       } catch {
         data = {};
       }
-
-      console.log(
-        "CREATE WORKSPACE STATUS:",
-        response.status
-      );
-
-      console.log(
-        "CREATE WORKSPACE RESPONSE:",
-        data
-      );
 
       if (response.status === 401) {
         handleUnauthorized();
@@ -569,16 +590,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
         data = {};
       }
 
-      console.log(
-        "RENAME WORKSPACE STATUS:",
-        response.status
-      );
-
-      console.log(
-        "RENAME WORKSPACE RESPONSE:",
-        data
-      );
-
       if (response.status === 401) {
         handleUnauthorized();
         return;
@@ -645,9 +656,14 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
-  const deleteWorkspace = async (
+  const archiveWorkspace = async (
     workspaceId
   ) => {
+    if (!token) {
+      handleUnauthorized();
+      return;
+    }
+
     const workspace =
       workspaces.find(
         (item) =>
@@ -660,7 +676,238 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
 
     const confirmed =
       window.confirm(
-        `Are you sure you want to delete "${workspaceTitle}"?`
+        `Archive "${workspaceTitle}"?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setArchivingWorkspaceId(
+        workspaceId
+      );
+
+      setMessage("");
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/workspaces/${workspaceId}/archive`,
+        {
+          method: "PUT",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      console.log(
+        "ARCHIVE WORKSPACE STATUS:",
+        response.status
+      );
+
+      console.log(
+        "ARCHIVE WORKSPACE RESPONSE:",
+        data
+      );
+
+      if (response.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        setMessage(
+          data.message ||
+            data.detail ||
+            `Archive failed. Status: ${response.status}`
+        );
+        return;
+      }
+
+      setWorkspaces((previous) =>
+        previous.filter(
+          (item) =>
+            item.id !== workspaceId
+        )
+      );
+
+      const archivedWorkspace =
+        data.workspace ||
+        workspace ||
+        null;
+
+      if (archivedWorkspace) {
+        setArchivedWorkspaces(
+          (previous) => [
+            ...previous.filter(
+              (item) =>
+                item.id !== workspaceId
+            ),
+            {
+              ...archivedWorkspace,
+              is_archived: true,
+            },
+          ]
+        );
+      }
+
+      setMessage(
+        "Workspace archived successfully ✅"
+      );
+    } catch (error) {
+      console.error(
+        "Workspace archive error:",
+        error
+      );
+
+      setMessage(
+        "Unable to archive workspace."
+      );
+    } finally {
+      setArchivingWorkspaceId(
+        null
+      );
+    }
+  };
+
+  const unarchiveWorkspace = async (
+    workspaceId
+  ) => {
+    if (!token) {
+      handleUnauthorized();
+      return;
+    }
+
+    try {
+      setRestoringWorkspaceId(
+        workspaceId
+      );
+
+      setMessage("");
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/workspaces/${workspaceId}/unarchive`,
+        {
+          method: "PUT",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      console.log(
+        "RESTORE WORKSPACE STATUS:",
+        response.status
+      );
+
+      console.log(
+        "RESTORE WORKSPACE RESPONSE:",
+        data
+      );
+
+      if (response.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        setMessage(
+          data.message ||
+            data.detail ||
+            `Restore failed. Status: ${response.status}`
+        );
+        return;
+      }
+
+      const restoredWorkspace =
+        data.workspace ||
+        archivedWorkspaces.find(
+          (item) =>
+            item.id === workspaceId
+        );
+
+      setArchivedWorkspaces(
+        (previous) =>
+          previous.filter(
+            (item) =>
+              item.id !== workspaceId
+          )
+      );
+
+      if (restoredWorkspace) {
+        setWorkspaces(
+          (previous) => [
+            ...previous.filter(
+              (item) =>
+                item.id !== workspaceId
+            ),
+            {
+              ...restoredWorkspace,
+              is_archived: false,
+            },
+          ]
+        );
+      }
+
+      setMessage(
+        "Workspace restored successfully ✅"
+      );
+    } catch (error) {
+      console.error(
+        "Workspace restore error:",
+        error
+      );
+
+      setMessage(
+        "Unable to restore workspace."
+      );
+    } finally {
+      setRestoringWorkspaceId(
+        null
+      );
+    }
+  };
+
+  const deleteWorkspace = async (
+    workspaceId,
+    fromArchived = false
+  ) => {
+    const sourceList =
+      fromArchived
+        ? archivedWorkspaces
+        : workspaces;
+
+    const workspace =
+      sourceList.find(
+        (item) =>
+          item.id === workspaceId
+      );
+
+    const workspaceTitle =
+      workspace?.name ||
+      "this workspace";
+
+    const confirmed =
+      window.confirm(
+        `Are you sure you want to permanently delete "${workspaceTitle}"?`
       );
 
     if (!confirmed) {
@@ -698,16 +945,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
         data = {};
       }
 
-      console.log(
-        "DELETE WORKSPACE STATUS:",
-        response.status
-      );
-
-      console.log(
-        "DELETE WORKSPACE RESPONSE:",
-        data
-      );
-
       if (response.status === 401) {
         handleUnauthorized();
         return;
@@ -723,6 +960,14 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       }
 
       setWorkspaces((previous) =>
+        previous.filter(
+          (workspace) =>
+            workspace.id !==
+            workspaceId
+        )
+      );
+
+      setArchivedWorkspaces((previous) =>
         previous.filter(
           (workspace) =>
             workspace.id !==
@@ -1165,8 +1410,10 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
           </div>
         </section>
 
+        {/* ACTIVE WORKSPACES */}
+
         <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <h3 className="text-lg sm:text-xl font-semibold text-slate-900">
                 Your Workspaces
@@ -1192,11 +1439,11 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
           ) : workspaces.length === 0 ? (
             <div className="mt-5 border border-dashed border-slate-300 rounded-xl p-6 text-center">
               <p className="text-sm text-slate-500">
-                No workspaces yet.
+                No active workspaces.
               </p>
 
               <p className="text-xs text-slate-400 mt-1">
-                Create your first workspace above.
+                Create a workspace above or restore an archived one.
               </p>
             </div>
           ) : (
@@ -1301,11 +1548,34 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
                             }
                             disabled={
                               deletingWorkspaceId ===
-                              item.id
+                                item.id ||
+                              archivingWorkspaceId ===
+                                item.id
                             }
                             className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
                           >
                             Rename
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              archiveWorkspace(
+                                item.id
+                              )
+                            }
+                            disabled={
+                              deletingWorkspaceId ===
+                                item.id ||
+                              archivingWorkspaceId ===
+                                item.id
+                            }
+                            className="px-3 py-2 rounded-lg border border-amber-200 text-xs font-medium text-amber-700 hover:bg-amber-50 transition disabled:opacity-50"
+                          >
+                            {archivingWorkspaceId ===
+                            item.id
+                              ? "Archiving..."
+                              : "Archive"}
                           </button>
 
                           <button
@@ -1336,7 +1606,9 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
                             }
                             disabled={
                               deletingWorkspaceId ===
-                              item.id
+                                item.id ||
+                              archivingWorkspaceId ===
+                                item.id
                             }
                             className="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 transition disabled:opacity-50"
                           >
@@ -1347,6 +1619,129 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
                     )}
                   </div>
                 )
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ARCHIVED WORKSPACES */}
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg sm:text-xl font-semibold text-slate-900">
+                Archived Workspaces
+              </h3>
+
+              <p className="text-sm text-slate-500 mt-1">
+                Restore workspaces whenever you need them again.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowArchived(
+                  (current) => !current
+                )
+              }
+              className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
+            >
+              {showArchived
+                ? "Hide"
+                : `Show (${archivedWorkspaces.length})`}
+            </button>
+          </div>
+
+          {showArchived && (
+            <div className="mt-4">
+              {archivedWorkspaces.length === 0 ? (
+                <div className="border border-dashed border-slate-300 rounded-xl p-6 text-center">
+                  <p className="text-sm text-slate-500">
+                    No archived workspaces.
+                  </p>
+
+                  <p className="text-xs text-slate-400 mt-1">
+                    Archived workspaces will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {archivedWorkspaces.map(
+                    (item) => (
+                      <div
+                        key={item.id}
+                        className="border border-slate-200 bg-slate-50 rounded-xl p-4"
+                      >
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-800 truncate">
+                              {item.name}
+                            </p>
+
+                            <p className="text-xs text-slate-500 mt-1">
+                              Archived workspace
+                            </p>
+
+                            {item.created_at && (
+                              <p className="text-xs text-slate-400 mt-1">
+                                Created:{" "}
+                                {new Date(
+                                  item.created_at
+                                ).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                unarchiveWorkspace(
+                                  item.id
+                                )
+                              }
+                              disabled={
+                                restoringWorkspaceId ===
+                                  item.id ||
+                                deletingWorkspaceId ===
+                                  item.id
+                              }
+                              className="px-3 py-2 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition disabled:opacity-50"
+                            >
+                              {restoringWorkspaceId ===
+                              item.id
+                                ? "Restoring..."
+                                : "Restore"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                deleteWorkspace(
+                                  item.id,
+                                  true
+                                )
+                              }
+                              disabled={
+                                deletingWorkspaceId ===
+                                  item.id ||
+                                restoringWorkspaceId ===
+                                  item.id
+                              }
+                              className="px-3 py-2 rounded-lg border border-red-200 text-xs font-medium text-red-600 hover:bg-red-50 transition disabled:opacity-50"
+                            >
+                              {deletingWorkspaceId ===
+                              item.id
+                                ? "Deleting..."
+                                : "Delete Permanently"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
               )}
             </div>
           )}
