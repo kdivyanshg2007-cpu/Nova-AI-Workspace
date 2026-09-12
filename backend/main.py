@@ -280,12 +280,14 @@ def create_new_workspace(
     response_model=APIResponse,
 )
 def list_workspaces(
+    include_archived: bool = False,
     current_user: dict = Depends(
         get_current_user
     ),
 ):
     return get_user_workspaces(
         user_id=current_user["user_id"],
+        include_archived=include_archived,
     )
 
 
