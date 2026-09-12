@@ -1,5 +1,7 @@
 from typing import Any
+
 from pathlib import Path
+
 import shutil
 import time
 
@@ -11,9 +13,11 @@ from fastapi import (
     Request,
     UploadFile,
 )
+
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -63,13 +67,16 @@ from document_processing import process_document
 from document_qa import ask_document
 
 from agents.coding_agent import CodingAgent
+
 from research_routes import router as research_router
 from share_routes import router as share_router
 from notes_tasks_routes import router as productivity_router
 from memories_routes import router as memories_router
 from search_routes import router as search_router
+
 from agents.research_pdf_export import ResearchPDFExportService
 from agents.file_export import FileExportService
+
 from preferences_routes import router as preferences_router
 from evaluation_routes import router as evaluation_router
 from usage_routes import router as usage_router
@@ -87,17 +94,13 @@ from services.data_analysis_service import (
 class APIResponse(BaseModel):
     success: bool
     message: str | None = None
-
     token: str | None = None
     user: dict[str, Any] | None = None
-
     workspace: dict[str, Any] | None = None
     workspaces: list[dict[str, Any]] | None = None
-
     document: dict[str, Any] | None = None
     documents: list[dict[str, Any]] | None = None
     document_id: int | None = None
-
     page: int | None = None
     limit: int | None = None
     query: str | None = None
@@ -138,7 +141,6 @@ app = FastAPI(
     description="Nova AI Workspace Backend API",
 )
 
-
 limiter = Limiter(
     key_func=get_remote_address
 )
@@ -147,7 +149,7 @@ app.state.limiter = limiter
 
 app.add_exception_handler(
     RateLimitExceeded,
-    _rate_limit_exceeded_handler
+    _rate_limit_exceeded_handler,
 )
 
 
@@ -174,16 +176,12 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-
         "http://localhost:5174",
         "http://127.0.0.1:5174",
-
         "http://localhost:5175",
         "http://127.0.0.1:5175",
-
         "http://localhost:5176",
         "http://127.0.0.1:5176",
-
         "https://nova-ai-workspace-kappa.vercel.app",
     ],
     allow_origin_regex=r"https://.*\.vercel\.app",
@@ -229,7 +227,9 @@ def test_error():
     "/api/v1/auth/signup",
     response_model=APIResponse,
 )
+@limiter.limit("5/minute")
 def signup(
+    request: Request,
     name: str,
     email: str,
     password: str,
@@ -245,7 +245,9 @@ def signup(
     "/api/v1/auth/login",
     response_model=APIResponse,
 )
+@limiter.limit("10/minute")
 def login(
+    request: Request,
     email: str,
     password: str,
 ):
@@ -1122,7 +1124,6 @@ async def analyze_data_file(
     cursor = None
 
     MAX_FILE_SIZE_MB = 25
-
     MAX_FILE_SIZE_BYTES = (
         MAX_FILE_SIZE_MB *
         1024 *
@@ -2130,7 +2131,9 @@ def export_research_pdf(
     if not report:
         return {
             "success": False,
-            "message": "Research report cannot be empty.",
+            "message": (
+                "Research report cannot be empty."
+            ),
         }
 
     try:
@@ -2182,7 +2185,9 @@ def export_research_docx(
     if not report:
         return {
             "success": False,
-            "message": "Research report cannot be empty.",
+            "message": (
+                "Research report cannot be empty."
+            ),
         }
 
     try:
@@ -2233,7 +2238,9 @@ def export_research_pptx(
     if not report:
         return {
             "success": False,
-            "message": "Research report cannot be empty.",
+            "message": (
+                "Research report cannot be empty."
+            ),
         }
 
     try:
@@ -2284,7 +2291,9 @@ def export_research_xlsx(
     if not report:
         return {
             "success": False,
-            "message": "Research report cannot be empty.",
+            "message": (
+                "Research report cannot be empty."
+            ),
         }
 
     try:
@@ -2325,7 +2334,9 @@ def export_research_xlsx(
     "/api/v1/coding/run",
     response_model=CodingResponse,
 )
+@limiter.limit("20/minute")
 def run_coding_agent(
+    http_request: Request,
     request: CodingRequest,
     workspace_id: int,
     current_user: dict = Depends(
