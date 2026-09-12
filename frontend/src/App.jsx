@@ -10,6 +10,7 @@ import Chat from "./pages/Chat.jsx";
 import DataAnalysis from "./pages/DataAnalysis";
 import Notes from "./pages/Notes";
 import Files from "./pages/Files";
+import Tasks from "./pages/Tasks";
 
 import Workspace from "../Workspace.jsx";
 import CodingWorkspace from "./components/CodingWorkspace";
@@ -27,6 +28,7 @@ function App() {
     if (path === "/data-analysis") return "data-analysis";
     if (path === "/notes") return "notes";
     if (path === "/files") return "files";
+    if (path === "/tasks") return "tasks";
 
     if (path.startsWith("/shared/")) {
       return "shared-research";
@@ -65,11 +67,17 @@ function App() {
     );
   }, []);
 
+  // --------------------------------------------------
+  // LOGIN
+  // --------------------------------------------------
   const handleLogin = () => {
     setPage("dashboard");
     window.history.pushState({}, "", "/");
   };
 
+  // --------------------------------------------------
+  // LOGOUT
+  // --------------------------------------------------
   const handleLogout = () => {
     localStorage.removeItem("nova_token");
     localStorage.removeItem("nova_user");
@@ -82,6 +90,9 @@ function App() {
     window.history.pushState({}, "", "/");
   };
 
+  // --------------------------------------------------
+  // OPEN WORKSPACE
+  // --------------------------------------------------
   const handleOpenWorkspace = (workspace) => {
     const workspaceId =
       workspace?.id ??
@@ -111,12 +122,18 @@ function App() {
     window.history.pushState({}, "", "/");
   };
 
+  // --------------------------------------------------
+  // BACK TO DASHBOARD
+  // --------------------------------------------------
   const handleBackToDashboard = () => {
     setSelectedWorkspace(null);
     setPage("dashboard");
     window.history.pushState({}, "", "/");
   };
 
+  // --------------------------------------------------
+  // BACK TO WORKSPACE
+  // --------------------------------------------------
   const handleBackToWorkspace = () => {
     setPage("workspace");
     window.history.pushState({}, "", "/");
@@ -159,6 +176,11 @@ function App() {
   const handleOpenFiles = () => {
     setPage("files");
     window.history.pushState({}, "", "/files");
+  };
+
+  const handleOpenTasks = () => {
+    setPage("tasks");
+    window.history.pushState({}, "", "/tasks");
   };
 
   // --------------------------------------------------
@@ -230,6 +252,7 @@ function App() {
           onOpenDataAnalysis={handleOpenDataAnalysis}
           onOpenNotes={handleOpenNotes}
           onOpenFiles={handleOpenFiles}
+          onOpenTasks={handleOpenTasks}
         />
       </div>
     );
@@ -273,6 +296,21 @@ function App() {
     return (
       <div className="nova-route nova-route-app">
         <Files
+          workspace={selectedWorkspace}
+          onBack={handleBackToWorkspace}
+        />
+      </div>
+    );
+  }
+
+  // --------------------------------------------------
+  // TASKS
+  // --------------------------------------------------
+
+  if (page === "tasks") {
+    return (
+      <div className="nova-route nova-route-app">
+        <Tasks
           workspace={selectedWorkspace}
           onBack={handleBackToWorkspace}
         />
