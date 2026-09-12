@@ -1,4 +1,4 @@
-function Workspace({
+export default function Workspace({
   workspace,
   onBack,
   onOpenChat,
@@ -8,6 +8,7 @@ function Workspace({
   onOpenDataAnalysis,
   onOpenNotes,
   onOpenFiles,
+  onOpenTasks,
 }) {
   return (
     <div className="min-h-screen bg-gray-100">
@@ -146,11 +147,24 @@ function Workspace({
                 Keep important notes
               </p>
             </button>
+
+            {/* Tasks */}
+            <button
+              type="button"
+              onClick={onOpenTasks}
+              className="border rounded-xl p-5 text-left hover:bg-gray-50 transition cursor-pointer"
+            >
+              <h3 className="font-semibold">
+                ✅ Tasks
+              </h3>
+
+              <p className="text-sm text-gray-500 mt-2">
+                Manage tasks, priorities and deadlines
+              </p>
+            </button>
           </div>
         </div>
       </main>
     </div>
   );
 }
-
-export default Workspace;

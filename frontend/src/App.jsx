@@ -11,7 +11,7 @@ import DataAnalysis from "./pages/DataAnalysis";
 import Notes from "./pages/Notes";
 import Files from "./pages/Files";
 
-import Workspace from "../Workspace";
+import Workspace from "../Workspace.jsx";
 import CodingWorkspace from "./components/CodingWorkspace";
 import ResearchWorkspace from "./components/ResearchWorkspace";
 import SharedResearch from "./components/SharedResearch";
