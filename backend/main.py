@@ -199,12 +199,10 @@ app.add_middleware(
     "/api/v1/health",
     response_model=HealthResponse,
 )
-@limiter.limit("5/minute")
-def health_check(request: Request):
+def health_check():
     return {
         "status": "ok"
     }
-
 
 # =========================================================
 # TEST ERROR
