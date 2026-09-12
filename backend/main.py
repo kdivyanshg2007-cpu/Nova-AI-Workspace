@@ -641,20 +641,6 @@ def create_new_chat_message(
                 "access denied."
             ),
         }
-
-    print(
-        "CHAT ROUTE -> USER:",
-        current_user["user_id"],
-        "| WORKSPACE:",
-        workspace_id,
-        "| MODEL:",
-        settings.GEMINI_MODEL,
-        "| KEY LOADED:",
-        bool(settings.GEMINI_API_KEY),
-        "| KEY LENGTH:",
-        len(settings.GEMINI_API_KEY),
-    )
-
     return create_chat_message(
         workspace_id=workspace_id,
         user_id=current_user["user_id"],
