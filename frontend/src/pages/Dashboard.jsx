@@ -40,6 +40,39 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
   const [showArchived, setShowArchived] =
     useState(false);
 
+  // =======================================================
+  // MEMORY STATE
+  // =======================================================
+
+  const [memories, setMemories] = useState([]);
+
+  const [memoryKey, setMemoryKey] = useState("");
+  const [memoryValue, setMemoryValue] = useState("");
+
+  const [loadingMemories, setLoadingMemories] =
+    useState(true);
+
+  const [savingMemory, setSavingMemory] =
+    useState(false);
+
+  const [editingMemoryId, setEditingMemoryId] =
+    useState(null);
+
+  const [editMemoryKey, setEditMemoryKey] =
+    useState("");
+
+  const [editMemoryValue, setEditMemoryValue] =
+    useState("");
+
+  const [updatingMemory, setUpdatingMemory] =
+    useState(false);
+
+  const [deletingMemoryId, setDeletingMemoryId] =
+    useState(null);
+
+  const [showMemories, setShowMemories] =
+    useState(true);
+
   const [preferences, setPreferences] = useState(() => ({
     language:
       localStorage.getItem("nova_language") || "en",
@@ -63,6 +96,10 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
 
   const API_BASE_URL =
     import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
+  // =======================================================
+  // THEME
+  // =======================================================
 
   const applyTheme = (theme) => {
     const normalizedTheme =
@@ -98,12 +135,17 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     applyTheme(preferences.theme);
   }, [preferences.theme]);
 
+  // =======================================================
+  // UNAUTHORIZED
+  // =======================================================
+
   const handleUnauthorized = () => {
     localStorage.removeItem("nova_token");
     localStorage.removeItem("nova_user");
 
     setWorkspaces([]);
     setArchivedWorkspaces([]);
+    setMemories([]);
 
     setMessage(
       "Your session has expired. Please login again."
@@ -111,6 +153,10 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
 
     onLogout();
   };
+
+  // =======================================================
+  // PREFERENCES
+  // =======================================================
 
   const loadPreferences = async () => {
     if (!token) {
@@ -255,6 +301,10 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
+  // =======================================================
+  // EVALUATIONS
+  // =======================================================
+
   const loadEvaluations = async () => {
     if (!token) {
       handleUnauthorized();
@@ -300,6 +350,10 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
+  // =======================================================
+  // USAGE
+  // =======================================================
+
   const loadUsageLogs = async () => {
     if (!token) {
       handleUnauthorized();
@@ -344,6 +398,10 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       );
     }
   };
+
+  // =======================================================
+  // WORKSPACES
+  // =======================================================
 
   const loadWorkspaces = async () => {
     if (!token) {
@@ -445,12 +503,375 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
-  useEffect(() => {
-    loadWorkspaces();
-    loadPreferences();
-    loadEvaluations();
-    loadUsageLogs();
-  }, []);
+  // =======================================================
+  // MEMORIES
+  // =======================================================
+
+  const loadMemories = async () => {
+    if (!token) {
+      handleUnauthorized();
+      return;
+    }
+
+    try {
+      setLoadingMemories(true);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/memories`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data =
+        await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+
+      if (!response.ok) {
+        console.error(
+          "Memories request failed:",
+          data
+        );
+
+        setMessage(
+          data.message ||
+            data.detail ||
+            `Memory request failed. Status: ${response.status}`
+        );
+
+        return;
+      }
+
+      const loadedMemories =
+        Array.isArray(data.memories)
+          ? data.memories
+          : [];
+
+      setMemories(
+        loadedMemories
+      );
+    } catch (error) {
+      console.error(
+        "Load memories error:",
+        error
+      );
+
+      setMessage(
+        "Unable to load memories."
+      );
+    } finally {
+      setLoadingMemories(false);
+    }
+  };
+
+  const createMemory = async () => {
+    const trimmedKey =
+      memoryKey.trim();
+
+    const trimmedValue =
+      memoryValue.trim();
+
+    if (!trimmedKey) {
+      setMessage(
+        "Memory key enter karo."
+      );
+      return;
+    }
+
+    if (!trimmedValue) {
+      setMessage(
+        "Memory value enter karo."
+      );
+      return;
+    }
+
+    if (!token) {
+      handleUnauthorized();
+      return;
+    }
+
+    try {
+      setSavingMemory(true);
+      setMessage("");
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/memories`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            memory_key: trimmedKey,
+            memory_value: trimmedValue,
+            workspace_id: null,
+          }),
+        }
+      );
+
+      const data =
+        await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+
+      if (!response.ok) {
+        setMessage(
+          data.message ||
+            data.detail ||
+            `Memory creation failed. Status: ${response.status}`
+        );
+        return;
+      }
+
+      setMemoryKey("");
+      setMemoryValue("");
+
+      setMessage(
+        "Memory saved successfully ✅"
+      );
+
+      await loadMemories();
+    } catch (error) {
+      console.error(
+        "Create memory error:",
+        error
+      );
+
+      setMessage(
+        "Unable to save memory."
+      );
+    } finally {
+      setSavingMemory(false);
+    }
+  };
+
+  const startMemoryEdit = (memory) => {
+    const normalizedMemory =
+      Array.isArray(memory)
+        ? {
+            id: memory[0],
+            workspace_id: memory[2],
+            memory_key: memory[3],
+            memory_value: memory[4],
+          }
+        : memory;
+
+    setEditingMemoryId(
+      normalizedMemory.id
+    );
+
+    setEditMemoryKey(
+      normalizedMemory.memory_key || ""
+    );
+
+    setEditMemoryValue(
+      normalizedMemory.memory_value || ""
+    );
+
+    setMessage("");
+  };
+
+  const cancelMemoryEdit = () => {
+    setEditingMemoryId(null);
+    setEditMemoryKey("");
+    setEditMemoryValue("");
+  };
+
+  const updateMemory = async (memoryId) => {
+    const trimmedKey =
+      editMemoryKey.trim();
+
+    const trimmedValue =
+      editMemoryValue.trim();
+
+    if (!trimmedKey) {
+      setMessage(
+        "Memory key cannot be empty."
+      );
+      return;
+    }
+
+    if (!trimmedValue) {
+      setMessage(
+        "Memory value cannot be empty."
+      );
+      return;
+    }
+
+    if (!token) {
+      handleUnauthorized();
+      return;
+    }
+
+    try {
+      setUpdatingMemory(true);
+      setMessage("");
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/memories/${memoryId}`,
+        {
+          method: "PUT",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            memory_key: trimmedKey,
+            memory_value: trimmedValue,
+          }),
+        }
+      );
+
+      const data =
+        await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+
+      if (!response.ok) {
+        setMessage(
+          data.message ||
+            data.detail ||
+            `Memory update failed. Status: ${response.status}`
+        );
+        return;
+      }
+
+      cancelMemoryEdit();
+
+      setMessage(
+        "Memory updated successfully ✅"
+      );
+
+      await loadMemories();
+    } catch (error) {
+      console.error(
+        "Update memory error:",
+        error
+      );
+
+      setMessage(
+        "Unable to update memory."
+      );
+    } finally {
+      setUpdatingMemory(false);
+    }
+  };
+
+  const deleteMemory = async (memoryId) => {
+    if (!token) {
+      handleUnauthorized();
+      return;
+    }
+
+    const memory =
+      memories.find((item) => {
+        const itemId =
+          Array.isArray(item)
+            ? item[0]
+            : item.id;
+
+        return itemId === memoryId;
+      });
+
+    const memoryTitle =
+      Array.isArray(memory)
+        ? memory[3]
+        : memory?.memory_key;
+
+    const confirmed =
+      window.confirm(
+        `Delete memory "${memoryTitle || "this memory"}"?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingMemoryId(
+        memoryId
+      );
+
+      setMessage("");
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/memories/${memoryId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data =
+        await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+
+      if (!response.ok) {
+        setMessage(
+          data.message ||
+            data.detail ||
+            `Memory deletion failed. Status: ${response.status}`
+        );
+        return;
+      }
+
+      setMemories((previous) =>
+        previous.filter((item) => {
+          const itemId =
+            Array.isArray(item)
+              ? item[0]
+              : item.id;
+
+          return itemId !== memoryId;
+        })
+      );
+
+      setMessage(
+        "Memory deleted successfully ✅"
+      );
+    } catch (error) {
+      console.error(
+        "Delete memory error:",
+        error
+      );
+
+      setMessage(
+        "Unable to delete memory."
+      );
+    } finally {
+      setDeletingMemoryId(
+        null
+      );
+    }
+  };
+
+  // =======================================================
+  // CREATE WORKSPACE
+  // =======================================================
 
   const createWorkspace = async () => {
     const trimmedWorkspaceName =
@@ -527,6 +948,10 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       setLoading(false);
     }
   };
+
+  // =======================================================
+  // RENAME WORKSPACE
+  // =======================================================
 
   const startWorkspaceRename = (
     workspace
@@ -656,6 +1081,10 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
+  // =======================================================
+  // ARCHIVE WORKSPACE
+  // =======================================================
+
   const archiveWorkspace = async (
     workspaceId
   ) => {
@@ -708,16 +1137,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       } catch {
         data = {};
       }
-
-      console.log(
-        "ARCHIVE WORKSPACE STATUS:",
-        response.status
-      );
-
-      console.log(
-        "ARCHIVE WORKSPACE RESPONSE:",
-        data
-      );
 
       if (response.status === 401) {
         handleUnauthorized();
@@ -779,6 +1198,10 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
+  // =======================================================
+  // RESTORE WORKSPACE
+  // =======================================================
+
   const unarchiveWorkspace = async (
     workspaceId
   ) => {
@@ -812,16 +1235,6 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       } catch {
         data = {};
       }
-
-      console.log(
-        "RESTORE WORKSPACE STATUS:",
-        response.status
-      );
-
-      console.log(
-        "RESTORE WORKSPACE RESPONSE:",
-        data
-      );
 
       if (response.status === 401) {
         handleUnauthorized();
@@ -885,6 +1298,10 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       );
     }
   };
+
+  // =======================================================
+  // DELETE WORKSPACE
+  // =======================================================
 
   const deleteWorkspace = async (
     workspaceId,
@@ -994,12 +1411,21 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("nova_token");
-    localStorage.removeItem("nova_user");
+  // =======================================================
+  // INITIAL LOAD
+  // =======================================================
 
-    onLogout();
-  };
+  useEffect(() => {
+    loadWorkspaces();
+    loadPreferences();
+    loadEvaluations();
+    loadUsageLogs();
+    loadMemories();
+  }, []);
+
+  // =======================================================
+  // JSX
+  // =======================================================
 
   return (
     <div
@@ -1022,7 +1448,11 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
 
         <button
           type="button"
-          onClick={handleLogout}
+          onClick={() => {
+            localStorage.removeItem("nova_token");
+            localStorage.removeItem("nova_user");
+            onLogout();
+          }}
           className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800 transition"
         >
           Logout
@@ -1030,6 +1460,9 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       </header>
 
       <main className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5 sm:space-y-6">
+
+        {/* WELCOME */}
+
         <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
           <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
             Welcome
@@ -1050,6 +1483,8 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
               : "Missing ❌"}
           </p>
         </div>
+
+        {/* CREATE WORKSPACE */}
 
         <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
           <h3 className="text-lg sm:text-xl font-semibold text-slate-900">
@@ -1092,23 +1527,9 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
                 : "Create"}
             </button>
           </div>
-
-          {message && (
-            <div className="mt-4">
-              <p
-                className={`text-sm break-words ${
-                  message.includes(
-                    "successfully"
-                  )
-                    ? "text-green-600"
-                    : "text-slate-600"
-                }`}
-              >
-                {message}
-              </p>
-            </div>
-          )}
         </div>
+
+        {/* PREFERENCES */}
 
         <section className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
           <div className="flex items-start justify-between gap-4">
@@ -1263,6 +1684,316 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
             </button>
           </div>
         </section>
+
+        {/* USER MEMORY */}
+
+        <section className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg sm:text-xl font-semibold text-slate-900">
+                🧠 User Memory
+              </h3>
+
+              <p className="text-sm text-slate-500 mt-1">
+                Save information Nova should remember about you.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowMemories(
+                  (current) => !current
+                )
+              }
+              className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
+            >
+              {showMemories
+                ? "Hide"
+                : `Show (${memories.length})`}
+            </button>
+          </div>
+
+          {showMemories && (
+            <>
+              {/* CREATE MEMORY */}
+
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Memory Key
+                  </label>
+
+                  <input
+                    type="text"
+                    value={memoryKey}
+                    onChange={(e) =>
+                      setMemoryKey(
+                        e.target.value
+                      )
+                    }
+                    placeholder="e.g. preferred_language"
+                    className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-900 bg-white outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Memory Value
+                  </label>
+
+                  <input
+                    type="text"
+                    value={memoryValue}
+                    onChange={(e) =>
+                      setMemoryValue(
+                        e.target.value
+                      )
+                    }
+                    onKeyDown={(e) => {
+                      if (
+                        e.key === "Enter" &&
+                        !savingMemory
+                      ) {
+                        createMemory();
+                      }
+                    }}
+                    placeholder="e.g. Hindi"
+                    className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-900 bg-white outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={createMemory}
+                disabled={savingMemory}
+                className="mt-4 bg-slate-900 text-white px-5 py-3 rounded-lg text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition"
+              >
+                {savingMemory
+                  ? "Saving..."
+                  : "Save Memory"}
+              </button>
+
+              {/* MEMORY LIST */}
+
+              <div className="mt-6">
+                {loadingMemories ? (
+                  <div className="space-y-3">
+                    <div className="h-20 bg-slate-100 rounded-xl animate-pulse" />
+                    <div className="h-20 bg-slate-100 rounded-xl animate-pulse" />
+                  </div>
+                ) : memories.length === 0 ? (
+                  <div className="border border-dashed border-slate-300 rounded-xl p-6 text-center">
+                    <p className="text-sm text-slate-500">
+                      No memories saved yet.
+                    </p>
+
+                    <p className="text-xs text-slate-400 mt-1">
+                      Save something Nova should remember.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {memories.map(
+                      (memory, index) => {
+                        const normalizedMemory =
+                          Array.isArray(memory)
+                            ? {
+                                id: memory[0],
+                                user_id: memory[1],
+                                workspace_id:
+                                  memory[2],
+                                memory_key:
+                                  memory[3],
+                                memory_value:
+                                  memory[4],
+                                created_at:
+                                  memory[5],
+                                updated_at:
+                                  memory[6],
+                              }
+                            : memory;
+
+                        const memoryId =
+                          normalizedMemory.id;
+
+                        return (
+                          <div
+                            key={
+                              memoryId ||
+                              index
+                            }
+                            className="border border-slate-200 rounded-xl p-4"
+                          >
+                            {editingMemoryId ===
+                            memoryId ? (
+                              <div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <input
+                                    type="text"
+                                    value={
+                                      editMemoryKey
+                                    }
+                                    onChange={(
+                                      e
+                                    ) =>
+                                      setEditMemoryKey(
+                                        e.target
+                                          .value
+                                      )
+                                    }
+                                    disabled={
+                                      updatingMemory
+                                    }
+                                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-slate-900"
+                                  />
+
+                                  <input
+                                    type="text"
+                                    value={
+                                      editMemoryValue
+                                    }
+                                    onChange={(
+                                      e
+                                    ) =>
+                                      setEditMemoryValue(
+                                        e.target
+                                          .value
+                                      )
+                                    }
+                                    disabled={
+                                      updatingMemory
+                                    }
+                                    onKeyDown={(
+                                      e
+                                    ) => {
+                                      if (
+                                        e.key ===
+                                          "Enter" &&
+                                        !updatingMemory
+                                      ) {
+                                        updateMemory(
+                                          memoryId
+                                        );
+                                      }
+
+                                      if (
+                                        e.key ===
+                                          "Escape"
+                                      ) {
+                                        cancelMemoryEdit();
+                                      }
+                                    }}
+                                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-slate-900"
+                                  />
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateMemory(
+                                        memoryId
+                                      )
+                                    }
+                                    disabled={
+                                      updatingMemory
+                                    }
+                                    className="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-slate-800 disabled:opacity-50"
+                                  >
+                                    {updatingMemory
+                                      ? "Saving..."
+                                      : "Save"}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={
+                                      cancelMemoryEdit
+                                    }
+                                    disabled={
+                                      updatingMemory
+                                    }
+                                    className="bg-slate-200 text-slate-900 px-4 py-2 rounded-lg text-xs font-medium hover:bg-slate-300 disabled:opacity-50"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-slate-900 break-words">
+                                    {normalizedMemory.memory_key}
+                                  </p>
+
+                                  <p className="text-sm text-slate-600 mt-1 break-words">
+                                    {
+                                      normalizedMemory.memory_value
+                                    }
+                                  </p>
+
+                                  {normalizedMemory.updated_at && (
+                                    <p className="text-xs text-slate-400 mt-2">
+                                      Updated:{" "}
+                                      {new Date(
+                                        normalizedMemory.updated_at
+                                      ).toLocaleString()}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      startMemoryEdit(
+                                        normalizedMemory
+                                      )
+                                    }
+                                    disabled={
+                                      deletingMemoryId ===
+                                      memoryId
+                                    }
+                                    className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
+                                  >
+                                    Edit
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      deleteMemory(
+                                        memoryId
+                                      )
+                                    }
+                                    disabled={
+                                      deletingMemoryId ===
+                                      memoryId
+                                    }
+                                    className="px-3 py-2 rounded-lg border border-red-200 text-xs font-medium text-red-600 hover:bg-red-50 transition disabled:opacity-50"
+                                  >
+                                    {deletingMemoryId ===
+                                    memoryId
+                                      ? "Deleting..."
+                                      : "Delete"}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </section>
+
+        {/* EVALUATIONS + USAGE */}
 
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
