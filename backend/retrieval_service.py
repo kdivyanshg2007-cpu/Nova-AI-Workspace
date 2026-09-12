@@ -188,24 +188,18 @@ def retrieve_relevant_chunks(
             """
             SELECT
                 dc.id,
-                dc.file_id,
                 dc.page,
                 dc.chunk_index,
                 dc.content,
                 dce.embedding,
-                COALESCE(
-                    f.filename,
-                    d.title
-                ) AS filename
+                d.title
             FROM document_chunks dc
             INNER JOIN documents d
                 ON dc.document_id = d.id
             INNER JOIN document_chunk_embeddings dce
                 ON dc.id = dce.chunk_id
-            LEFT JOIN files f
-                ON dc.file_id = f.id
             WHERE dc.workspace_id = %s
-            AND d.workspace_id = %s
+              AND d.workspace_id = %s
             ORDER BY dc.id ASC;
             """,
             (
@@ -228,12 +222,11 @@ def retrieve_relevant_chunks(
 
         for row in rows:
             chunk_id = row[0]
-            file_id = row[1]
-            page = row[2]
-            chunk_index = row[3]
-            content = row[4]
-            stored_embedding = row[5]
-            filename = row[6] or "unknown"
+            page = row[1]
+            chunk_index = row[2]
+            content = row[3]
+            stored_embedding = row[4]
+            filename = row[5] or "unknown"
 
             try:
                 if isinstance(
@@ -277,7 +270,7 @@ def retrieve_relevant_chunks(
             candidates.append(
                 {
                     "chunk_id": chunk_id,
-                    "file_id": file_id,
+                    "file_id": None,
                     "filename": filename,
                     "logical_filename": normalize_filename(
                         filename
@@ -291,6 +284,10 @@ def retrieve_relevant_chunks(
                     "intent_score": file_intent_score,
                 }
             )
+
+        # --------------------------------------------------
+        # Remove exact duplicate chunks
+        # --------------------------------------------------
 
         unique_chunks = []
         seen_chunks = set()
@@ -311,6 +308,10 @@ def retrieve_relevant_chunks(
             seen_chunks.add(duplicate_key)
             unique_chunks.append(item)
 
+        # --------------------------------------------------
+        # Group chunks by logical document
+        # --------------------------------------------------
+
         documents = {}
 
         for item in unique_chunks:
@@ -320,6 +321,10 @@ def retrieve_relevant_chunks(
                 documents[logical_name] = []
 
             documents[logical_name].append(item)
+
+        # --------------------------------------------------
+        # Score documents
+        # --------------------------------------------------
 
         ranked_documents = []
 
@@ -369,6 +374,10 @@ def retrieve_relevant_chunks(
             reverse=True,
         )
 
+        # --------------------------------------------------
+        # Progress questions
+        # --------------------------------------------------
+
         if intent == "progress":
 
             progress_docs = []
@@ -390,6 +399,11 @@ def retrieve_relevant_chunks(
                 progress_docs + other_docs
             )
 
+        # --------------------------------------------------
+        # First pass:
+        # one best chunk from each document
+        # --------------------------------------------------
+
         final_results = []
 
         for document in ranked_documents:
@@ -403,6 +417,11 @@ def retrieve_relevant_chunks(
 
             if len(final_results) >= top_k:
                 break
+
+        # --------------------------------------------------
+        # Second pass:
+        # additional chunks
+        # --------------------------------------------------
 
         if len(final_results) < top_k:
 
