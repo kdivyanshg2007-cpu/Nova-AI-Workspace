@@ -37,11 +37,6 @@ def normalize_filename(filename):
 
     filename = filename.strip()
 
-    # Treat:
-    # roadmap.pdf
-    # roadmap (1).pdf
-    # roadmap (2).pdf
-    # as the same logical file.
     filename = re.sub(
         r"\s*\(\d+\)(?=\.[^.]+$)",
         "",
@@ -177,6 +172,11 @@ def retrieve_relevant_chunks(
 
     query_embedding = generate_embedding(query)
 
+    print(
+        "QUERY EMBEDDING DIMENSION:",
+        len(query_embedding),
+    )
+
     intent = detect_query_intent(query)
 
     connection = get_connection()
@@ -193,18 +193,33 @@ def retrieve_relevant_chunks(
                 dc.chunk_index,
                 dc.content,
                 dce.embedding,
-                f.filename
+                COALESCE(
+                    f.filename,
+                    d.title
+                ) AS filename
             FROM document_chunks dc
+            INNER JOIN documents d
+                ON dc.document_id = d.id
             INNER JOIN document_chunk_embeddings dce
                 ON dc.id = dce.chunk_id
-            INNER JOIN files f
+            LEFT JOIN files f
                 ON dc.file_id = f.id
             WHERE dc.workspace_id = %s
+            AND d.workspace_id = %s
+            ORDER BY dc.id ASC;
             """,
-            (workspace_id,),
+            (
+                workspace_id,
+                workspace_id,
+            ),
         )
 
         rows = cursor.fetchall()
+
+        print(
+            "RETRIEVAL ROW COUNT:",
+            len(rows),
+        )
 
         if not rows:
             return []
@@ -218,10 +233,13 @@ def retrieve_relevant_chunks(
             chunk_index = row[3]
             content = row[4]
             stored_embedding = row[5]
-            filename = row[6]
+            filename = row[6] or "unknown"
 
             try:
-                if isinstance(stored_embedding, str):
+                if isinstance(
+                    stored_embedding,
+                    str,
+                ):
                     stored_embedding = json.loads(
                         stored_embedding
                     )
@@ -231,7 +249,12 @@ def retrieve_relevant_chunks(
                     stored_embedding,
                 )
 
-            except Exception:
+            except Exception as embedding_error:
+                print(
+                    "STORED EMBEDDING ERROR:",
+                    repr(embedding_error),
+                )
+
                 semantic_score = 0.0
 
             keyword_score = lexical_score(
@@ -245,7 +268,6 @@ def retrieve_relevant_chunks(
                 intent,
             )
 
-            # Semantic relevance is still the main signal.
             combined_score = (
                 semantic_score * 0.55
                 + keyword_score * 0.20
@@ -270,10 +292,6 @@ def retrieve_relevant_chunks(
                 }
             )
 
-        # --------------------------------------------------
-        # Remove exact duplicate chunks.
-        # --------------------------------------------------
-
         unique_chunks = []
         seen_chunks = set()
 
@@ -293,10 +311,6 @@ def retrieve_relevant_chunks(
             seen_chunks.add(duplicate_key)
             unique_chunks.append(item)
 
-        # --------------------------------------------------
-        # Group chunks by logical filename.
-        # --------------------------------------------------
-
         documents = {}
 
         for item in unique_chunks:
@@ -306,10 +320,6 @@ def retrieve_relevant_chunks(
                 documents[logical_name] = []
 
             documents[logical_name].append(item)
-
-        # --------------------------------------------------
-        # Score documents.
-        # --------------------------------------------------
 
         ranked_documents = []
 
@@ -337,7 +347,6 @@ def retrieve_relevant_chunks(
                 + average_score * 0.30
             )
 
-            # Explicit intent priority.
             document_intent = intent_score(
                 logical_name,
                 intent,
@@ -360,11 +369,6 @@ def retrieve_relevant_chunks(
             reverse=True,
         )
 
-        # --------------------------------------------------
-        # Make the Conversation Progress document the first
-        # logical source for progress/status questions.
-        # --------------------------------------------------
-
         if intent == "progress":
 
             progress_docs = []
@@ -386,13 +390,6 @@ def retrieve_relevant_chunks(
                 progress_docs + other_docs
             )
 
-        # --------------------------------------------------
-        # First pass:
-        # one best chunk from each logical document.
-        #
-        # This guarantees document diversity.
-        # --------------------------------------------------
-
         final_results = []
 
         for document in ranked_documents:
@@ -406,11 +403,6 @@ def retrieve_relevant_chunks(
 
             if len(final_results) >= top_k:
                 break
-
-        # --------------------------------------------------
-        # Second pass:
-        # fill remaining slots with additional chunks.
-        # --------------------------------------------------
 
         if len(final_results) < top_k:
 
@@ -435,9 +427,10 @@ def retrieve_relevant_chunks(
                 if len(final_results) >= top_k:
                     break
 
-        # IMPORTANT:
-        # Do not globally sort final_results again.
-        # The document-level ranking above is intentional.
+        print(
+            "FINAL RETRIEVAL RESULT COUNT:",
+            len(final_results),
+        )
 
         return final_results[:top_k]
 

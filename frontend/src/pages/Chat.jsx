@@ -52,6 +52,13 @@ function Chat({ workspace, onBack }) {
   const [attachments, setAttachments] = useState([]);
 
   // =========================================================
+  // VOICE INPUT
+  // =========================================================
+
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+
+  // =========================================================
   // DOCUMENT Q&A
   // =========================================================
 
@@ -64,6 +71,13 @@ function Chat({ workspace, onBack }) {
 
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
+
+  const speechRecognitionRef = useRef(null);
+
+  // Voice refs
+  const voiceBaseMessageRef = useRef("");
+  const voiceMessageRef = useRef("");
+  const voiceTranscriptRef = useRef("");
 
   const selectedConversation = conversations.find(
     (conversation) =>
@@ -127,6 +141,193 @@ function Chat({ workspace, onBack }) {
     }
 
     return "Nova could not process your message. Please try again.";
+  };
+
+  // =========================================================
+  // VOICE INPUT
+  // =========================================================
+
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition ||
+      window.webkitSpeechRecognition;
+
+    setVoiceSupported(Boolean(SpeechRecognition));
+
+    return () => {
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.stop();
+        } catch {
+          // Ignore cleanup errors.
+        }
+      }
+
+      speechRecognitionRef.current = null;
+    };
+  }, []);
+
+  const toggleVoiceInput = () => {
+    const SpeechRecognition =
+      window.SpeechRecognition ||
+      window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setError(
+        "Voice input is not supported in this browser. Please use Google Chrome or Microsoft Edge."
+      );
+      return;
+    }
+
+    if (
+      loading ||
+      conversationsLoading ||
+      !selectedConversationId
+    ) {
+      return;
+    }
+
+    if (isListening) {
+      try {
+        speechRecognitionRef.current?.stop();
+      } catch {
+        setIsListening(false);
+        speechRecognitionRef.current = null;
+      }
+
+      return;
+    }
+
+    setError("");
+
+    const recognition = new SpeechRecognition();
+
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = navigator.language || "en-IN";
+
+    const existingMessage = message.trim();
+
+    voiceBaseMessageRef.current = existingMessage;
+    voiceTranscriptRef.current = "";
+    voiceMessageRef.current = existingMessage;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event) => {
+      let transcript = "";
+
+      for (
+        let index = event.resultIndex;
+        index < event.results.length;
+        index += 1
+      ) {
+        transcript +=
+          event.results[index]?.[0]?.transcript ||
+          "";
+      }
+
+      const cleanTranscript = transcript.trim();
+
+      const combinedMessage = [
+        voiceBaseMessageRef.current,
+        cleanTranscript,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+      voiceTranscriptRef.current = cleanTranscript;
+      voiceMessageRef.current = combinedMessage;
+
+      setMessage(combinedMessage);
+
+      requestAnimationFrame(() => {
+        autoResizeTextarea();
+      });
+    };
+
+    recognition.onerror = (event) => {
+      console.error(
+        "Voice input error:",
+        event
+      );
+
+      const errorMessages = {
+        "not-allowed":
+          "Microphone permission was denied. Please allow microphone access and try again.",
+        "audio-capture":
+          "No microphone was found. Please connect a microphone and try again.",
+        "no-speech":
+          "No speech was detected. Please try again and speak clearly.",
+        network:
+          "Voice input could not connect to the speech service. Please try again.",
+      };
+
+      setError(
+        errorMessages[event.error] ||
+          "Voice input failed. Please try again."
+      );
+
+      setIsListening(false);
+      speechRecognitionRef.current = null;
+      voiceTranscriptRef.current = "";
+      voiceMessageRef.current = "";
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      speechRecognitionRef.current = null;
+
+      const finalVoiceMessage =
+        voiceMessageRef.current.trim();
+
+      voiceMessageRef.current = "";
+      voiceTranscriptRef.current = "";
+      voiceBaseMessageRef.current = "";
+
+      requestAnimationFrame(() => {
+        autoResizeTextarea();
+        textareaRef.current?.focus();
+      });
+
+      // =====================================================
+      // VOICE AUTO SEND
+      // =====================================================
+
+      if (
+        finalVoiceMessage &&
+        selectedConversationId &&
+        !loading &&
+        !conversationsLoading
+      ) {
+        setMessage(finalVoiceMessage);
+
+        requestAnimationFrame(() => {
+          sendMessage(finalVoiceMessage);
+        });
+      }
+    };
+
+    speechRecognitionRef.current = recognition;
+
+    try {
+      recognition.start();
+    } catch (voiceStartError) {
+      console.error(
+        "Voice input start error:",
+        voiceStartError
+      );
+
+      setIsListening(false);
+      speechRecognitionRef.current = null;
+
+      setError(
+        "Unable to start voice input. Please try again."
+      );
+    }
   };
 
   // =========================================================
@@ -204,6 +405,25 @@ function Chat({ workspace, onBack }) {
           continue;
         }
 
+        const backendContentType = String(
+          data.attachment?.content_type || ""
+        ).trim().toLowerCase();
+
+        const localContentType = String(
+          file.type || ""
+        ).trim().toLowerCase();
+
+        const normalizedFileName = String(
+          file.name || ""
+        ).trim().toLowerCase();
+
+        const isImage =
+          localContentType.startsWith("image/") ||
+          backendContentType.startsWith("image/") ||
+          /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(
+            normalizedFileName
+          );
+
         const uploadedFile = {
           id:
             data.attachment?.id ??
@@ -218,12 +438,19 @@ function Chat({ workspace, onBack }) {
             file.size,
 
           type:
-            data.attachment?.content_type ||
-            file.type,
+            backendContentType ||
+            localContentType,
+
+          is_image: isImage,
 
           path:
             data.attachment?.path ||
             "",
+
+          preview_url:
+            isImage
+              ? URL.createObjectURL(file)
+              : "",
 
           workspace_id:
             data.attachment?.workspace_id ??
@@ -253,18 +480,51 @@ function Chat({ workspace, onBack }) {
     event.target.value = "";
   };
 
+  const revokeAttachmentPreview = (attachment) => {
+    if (attachment?.preview_url) {
+      URL.revokeObjectURL(
+        attachment.preview_url
+      );
+    }
+  };
+
   const removeAttachment = (indexToRemove) => {
-    setAttachments((previous) =>
-      previous.filter(
+    setAttachments((previous) => {
+      const attachmentToRemove =
+        previous[indexToRemove];
+
+      revokeAttachmentPreview(
+        attachmentToRemove
+      );
+
+      return previous.filter(
         (_, index) =>
           index !== indexToRemove
-      )
-    );
+      );
+    });
   };
 
   const clearAttachments = () => {
-    setAttachments([]);
+    setAttachments((previous) => {
+      previous.forEach(
+        revokeAttachmentPreview
+      );
+
+      return [];
+    });
   };
+
+  useEffect(() => {
+    return () => {
+      setAttachments((previous) => {
+        previous.forEach(
+          revokeAttachmentPreview
+        );
+
+        return [];
+      });
+    };
+  }, []);
 
   // =========================================================
   // DOCUMENT Q&A
@@ -756,15 +1016,19 @@ function Chat({ workspace, onBack }) {
   };
 
   // =========================================================
-  // SEND NORMAL CHAT MESSAGE
+  // SEND MESSAGE
   // =========================================================
 
-  const sendMessage = async () => {
-    const trimmedMessage =
-      message.trim();
+  const sendMessage = async (
+    messageOverride = null
+  ) => {
+    const messageToSend =
+      String(
+        messageOverride ?? message
+      ).trim();
 
     if (
-      !trimmedMessage ||
+      !messageToSend ||
       loading ||
       conversationsLoading ||
       !workspace?.id ||
@@ -796,7 +1060,7 @@ function Chat({ workspace, onBack }) {
 
       params.set(
         "message",
-        trimmedMessage
+        messageToSend
       );
 
       if (uploadedFileId) {
@@ -1088,6 +1352,7 @@ function Chat({ workspace, onBack }) {
           "Unable to load evaluations:",
           data.message || data.detail
         );
+
         return;
       }
 
@@ -1095,19 +1360,43 @@ function Chat({ workspace, onBack }) {
       const scoresMap = {};
       const feedbackMap = {};
 
-      for (const evaluation of Array.isArray(data.evaluations)
-        ? data.evaluations
-        : []) {
-        if (!evaluation.message_id) continue;
+      for (
+        const evaluation of Array.isArray(
+          data.evaluations
+        )
+          ? data.evaluations
+          : []
+      ) {
+        if (!evaluation.message_id) {
+          continue;
+        }
 
-        evaluatedMap[evaluation.message_id] = true;
-        scoresMap[evaluation.message_id] = evaluation.score;
-        feedbackMap[evaluation.message_id] = evaluation.feedback || "";
+        evaluatedMap[
+          evaluation.message_id
+        ] = true;
+
+        scoresMap[
+          evaluation.message_id
+        ] = evaluation.score;
+
+        feedbackMap[
+          evaluation.message_id
+        ] =
+          evaluation.feedback ||
+          "";
       }
 
-      setEvaluatedMessages(evaluatedMap);
-      setEvaluationScores(scoresMap);
-      setEvaluationFeedback(feedbackMap);
+      setEvaluatedMessages(
+        evaluatedMap
+      );
+
+      setEvaluationScores(
+        scoresMap
+      );
+
+      setEvaluationFeedback(
+        feedbackMap
+      );
     } catch (evaluationLoadError) {
       console.error(
         "Load evaluations error:",
@@ -1116,21 +1405,42 @@ function Chat({ workspace, onBack }) {
     }
   };
 
-  const submitEvaluation = async (messageId) => {
-    const score = Number(evaluationScores[messageId]);
+  const submitEvaluation = async (
+    messageId
+  ) => {
+    const score = Number(
+      evaluationScores[messageId]
+    );
 
-    if (!Number.isInteger(score) || score < 1 || score > 5) {
-      setError("Please select a rating from 1 to 5.");
+    if (
+      !Number.isInteger(score) ||
+      score < 1 ||
+      score > 5
+    ) {
+      setError(
+        "Please select a rating from 1 to 5."
+      );
+
       return;
     }
 
-    if (!workspace?.id || !selectedConversationId || !messageId) {
-      setError("Unable to submit evaluation for this response.");
+    if (
+      !workspace?.id ||
+      !selectedConversationId ||
+      !messageId
+    ) {
+      setError(
+        "Unable to submit evaluation for this response."
+      );
+
       return;
     }
 
     try {
-      setEvaluatingMessageId(messageId);
+      setEvaluatingMessageId(
+        messageId
+      );
+
       setError("");
 
       const response = await fetch(
@@ -1139,16 +1449,24 @@ function Chat({ workspace, onBack }) {
           method: "POST",
           headers: {
             Accept: "application/json",
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
             Authorization: `Bearer ${token}`,
           },
+
           body: JSON.stringify({
-            workspace_id: workspace.id,
-            conversation_id: selectedConversationId,
+            workspace_id:
+              workspace.id,
+            conversation_id:
+              selectedConversationId,
             message_id: messageId,
             score,
-            feedback: evaluationFeedback[messageId]?.trim() || null,
-            evaluation_type: "quality",
+            feedback:
+              evaluationFeedback[
+                messageId
+              ]?.trim() || null,
+            evaluation_type:
+              "quality",
           }),
         }
       );
@@ -1163,23 +1481,33 @@ function Chat({ workspace, onBack }) {
 
       if (response.status === 401) {
         clearSession();
-        setError("Your session has expired. Please login again.");
+
+        setError(
+          "Your session has expired. Please login again."
+        );
+
         return;
       }
 
-      if (!response.ok || !data.success) {
+      if (
+        !response.ok ||
+        !data.success
+      ) {
         setError(
           data.message ||
             data.detail ||
             "Unable to submit evaluation."
         );
+
         return;
       }
 
-      setEvaluatedMessages((previous) => ({
-        ...previous,
-        [messageId]: true,
-      }));
+      setEvaluatedMessages(
+        (previous) => ({
+          ...previous,
+          [messageId]: true,
+        })
+      );
     } catch (evaluationError) {
       console.error(
         "Evaluation submission error:",
@@ -1190,7 +1518,9 @@ function Chat({ workspace, onBack }) {
         "Unable to submit evaluation. Please try again."
       );
     } finally {
-      setEvaluatingMessageId(null);
+      setEvaluatingMessageId(
+        null
+      );
     }
   };
 
@@ -1268,7 +1598,10 @@ function Chat({ workspace, onBack }) {
         return;
       }
 
-      if (!response.ok || !data.success) {
+      if (
+        !response.ok ||
+        !data.success
+      ) {
         setError(
           data.message ||
             data.detail ||
@@ -1454,9 +1787,7 @@ function Chat({ workspace, onBack }) {
                 <div className="space-y-2">
 
                   <div className="h-12 bg-slate-200 rounded-xl animate-pulse" />
-
                   <div className="h-12 bg-slate-200 rounded-xl animate-pulse" />
-
                   <div className="h-12 bg-slate-200 rounded-xl animate-pulse" />
 
                 </div>
@@ -1483,7 +1814,9 @@ function Chat({ workspace, onBack }) {
                     (conversation) => (
 
                       <div
-                        key={conversation.id}
+                        key={
+                          conversation.id
+                        }
                         className={`relative rounded-xl border transition ${
                           selectedConversationId ===
                           conversation.id
@@ -1499,13 +1832,20 @@ function Chat({ workspace, onBack }) {
 
                             <input
                               type="text"
-                              value={editTitle}
-                              onChange={(event) =>
+                              value={
+                                editTitle
+                              }
+                              onChange={(
+                                event
+                              ) =>
                                 setEditTitle(
-                                  event.target.value
+                                  event.target
+                                    .value
                                 )
                               }
-                              onKeyDown={(event) =>
+                              onKeyDown={(
+                                event
+                              ) =>
                                 handleRenameKeyDown(
                                   event,
                                   conversation.id
@@ -1523,7 +1863,9 @@ function Chat({ workspace, onBack }) {
 
                               <button
                                 type="button"
-                                onClick={(event) => {
+                                onClick={(
+                                  event
+                                ) => {
                                   event.stopPropagation();
 
                                   saveRename(
@@ -1542,7 +1884,9 @@ function Chat({ workspace, onBack }) {
 
                               <button
                                 type="button"
-                                onClick={(event) => {
+                                onClick={(
+                                  event
+                                ) => {
                                   event.stopPropagation();
                                   cancelRename();
                                 }}
@@ -1603,7 +1947,9 @@ function Chat({ workspace, onBack }) {
 
                             <button
                               type="button"
-                              onClick={(event) => {
+                              onClick={(
+                                event
+                              ) => {
                                 event.stopPropagation();
 
                                 setOpenMenuId(
@@ -1713,7 +2059,7 @@ function Chat({ workspace, onBack }) {
 
             </div>
 
-            {/* DOCUMENT Q&A PANEL */}
+            {/* DOCUMENT Q&A */}
             {showDocumentQA && (
 
               <div className="border-b border-slate-200 bg-white px-3 sm:px-6 py-4">
@@ -1747,7 +2093,9 @@ function Chat({ workspace, onBack }) {
                   <div className="flex flex-col sm:flex-row gap-2">
 
                     <textarea
-                      value={documentQuestion}
+                      value={
+                        documentQuestion
+                      }
                       onChange={(event) =>
                         setDocumentQuestion(
                           event.target.value
@@ -1822,7 +2170,10 @@ function Chat({ workspace, onBack }) {
                       <div className="space-y-2">
 
                         {documentSources.map(
-                          (source, index) => (
+                          (
+                            source,
+                            index
+                          ) => (
 
                             <div
                               key={`${source.chunk_id || index}-${source.file_id || "source"}`}
@@ -1948,51 +2299,81 @@ function Chat({ workspace, onBack }) {
                           </div>
 
                           {item.role === "assistant" && (
+
                             <div className="mt-4 pt-3 border-t border-slate-200">
 
                               {evaluatedMessages[item.id] ? (
+
                                 <div className="text-xs font-medium text-emerald-600">
                                   ✓ Feedback submitted. Thank you!
                                 </div>
+
                               ) : (
+
                                 <>
+
                                   <p className="text-xs font-semibold text-slate-600 mb-2">
                                     Rate Nova's response
                                   </p>
 
                                   <div className="flex flex-wrap items-center gap-2 mb-3">
-                                    {[1, 2, 3, 4, 5].map((score) => (
-                                      <button
-                                        key={score}
-                                        type="button"
-                                        onClick={() =>
-                                          setEvaluationScores((previous) => ({
-                                            ...previous,
-                                            [item.id]: score,
-                                          }))
-                                        }
-                                        className={
-                                          "w-9 h-9 rounded-lg border text-sm font-semibold transition " +
-                                          (
-                                            Number(evaluationScores[item.id]) === score
-                                              ? "bg-slate-900 text-white border-slate-900"
-                                              : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-                                          )
-                                        }
-                                        aria-label={"Rate " + score + " out of 5"}
-                                      >
-                                        {score}
-                                      </button>
-                                    ))}
+
+                                    {[1, 2, 3, 4, 5].map(
+                                      (score) => (
+
+                                        <button
+                                          key={score}
+                                          type="button"
+                                          onClick={() =>
+                                            setEvaluationScores(
+                                              (previous) => ({
+                                                ...previous,
+                                                [item.id]:
+                                                  score,
+                                              })
+                                            )
+                                          }
+                                          className={
+                                            "w-9 h-9 rounded-lg border text-sm font-semibold transition " +
+                                            (
+                                              Number(
+                                                evaluationScores[
+                                                  item.id
+                                                ]
+                                              ) ===
+                                              score
+                                                ? "bg-slate-900 text-white border-slate-900"
+                                                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                                            )
+                                          }
+                                          aria-label={
+                                            "Rate " +
+                                            score +
+                                            " out of 5"
+                                          }
+                                        >
+                                          {score}
+                                        </button>
+
+                                      )
+                                    )}
+
                                   </div>
 
                                   <textarea
-                                    value={evaluationFeedback[item.id] || ""}
+                                    value={
+                                      evaluationFeedback[
+                                        item.id
+                                      ] || ""
+                                    }
                                     onChange={(event) =>
-                                      setEvaluationFeedback((previous) => ({
-                                        ...previous,
-                                        [item.id]: event.target.value,
-                                      }))
+                                      setEvaluationFeedback(
+                                        (previous) => ({
+                                          ...previous,
+                                          [item.id]:
+                                            event.target.value,
+                                        })
+                                      )
                                     }
                                     rows={2}
                                     maxLength={500}
@@ -2002,24 +2383,33 @@ function Chat({ workspace, onBack }) {
 
                                   <button
                                     type="button"
-                                    onClick={() => submitEvaluation(item.id)}
+                                    onClick={() =>
+                                      submitEvaluation(
+                                        item.id
+                                      )
+                                    }
                                     disabled={
-                                      evaluatingMessageId === item.id ||
-                                      !evaluationScores[item.id]
+                                      evaluatingMessageId ===
+                                        item.id ||
+                                      !evaluationScores[
+                                        item.id
+                                      ]
                                     }
                                     className="bg-slate-900 text-white rounded-lg px-3 py-2 text-xs font-medium hover:bg-slate-800 transition disabled:opacity-40"
                                   >
-                                    {evaluatingMessageId === item.id
+                                    {evaluatingMessageId ===
+                                    item.id
                                       ? "Submitting..."
                                       : "Submit Feedback"}
                                   </button>
+
                                 </>
+
                               )}
 
                             </div>
+
                           )}
-
-
 
                         </div>
 
@@ -2079,16 +2469,45 @@ function Chat({ workspace, onBack }) {
 
                         <div
                           key={`${file.name}-${index}`}
-                          className="flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-xl px-3 py-2"
+                          className="flex items-center gap-3 bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-2 max-w-full"
                         >
 
-                          <span>
-                            📄
-                          </span>
+                          {file.is_image &&
+                          file.preview_url ? (
 
-                          <span className="text-xs text-slate-700 truncate max-w-[220px]">
-                            {file.name}
-                          </span>
+                            <img
+                              src={
+                                file.preview_url
+                              }
+                              alt={file.name}
+                              className="w-14 h-14 rounded-lg object-cover border border-slate-200 shrink-0"
+                              onError={(event) => {
+                                event.currentTarget.style.display =
+                                  "none";
+                              }}
+                            />
+
+                          ) : (
+
+                            <span className="w-12 h-12 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 text-xl">
+                              📄
+                            </span>
+
+                          )}
+
+                          <div className="min-w-0">
+
+                            <p className="text-xs font-medium text-slate-700 truncate max-w-[220px]">
+                              {file.name}
+                            </p>
+
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              {file.is_image
+                                ? "Image attached"
+                                : "File attached"}
+                            </p>
+
+                          </div>
 
                           <button
                             type="button"
@@ -2097,7 +2516,7 @@ function Chat({ workspace, onBack }) {
                                 index
                               )
                             }
-                            className="text-slate-500 hover:text-red-600"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-white transition shrink-0"
                             aria-label={`Remove ${file.name}`}
                           >
                             ×
@@ -2133,6 +2552,10 @@ function Chat({ workspace, onBack }) {
 
                 <div className="mb-3">
 
+                  <p className="text-[11px] text-slate-400 mb-2">
+                    Upload an image to let Nova understand and analyze it.
+                  </p>
+
                   <input
                     id="nova-chat-file-upload"
                     type="file"
@@ -2156,6 +2579,43 @@ function Chat({ workspace, onBack }) {
                 </div>
 
                 <div className="flex gap-2 sm:gap-3 items-end border border-slate-300 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-slate-200">
+
+                  {/* VOICE BUTTON */}
+                  <button
+                    type="button"
+                    onClick={
+                      toggleVoiceInput
+                    }
+                    disabled={
+                      loading ||
+                      conversationsLoading ||
+                      !selectedConversationId
+                    }
+                    title={
+                      isListening
+                        ? "Stop voice input"
+                        : voiceSupported
+                          ? "Start voice input"
+                          : "Voice input"
+                    }
+                    aria-label={
+                      isListening
+                        ? "Stop voice input"
+                        : "Start voice input"
+                    }
+                    aria-pressed={
+                      isListening
+                    }
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg font-medium transition shrink-0 ${
+                      isListening
+                        ? "bg-red-600 text-white hover:bg-red-700"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    } disabled:opacity-40 disabled:cursor-not-allowed`}
+                  >
+                    {isListening
+                      ? "⏹"
+                      : "🎤"}
+                  </button>
 
                   <textarea
                     ref={textareaRef}
@@ -2202,17 +2662,32 @@ function Chat({ workspace, onBack }) {
 
                 </div>
 
-                <p className="text-[10px] sm:text-[11px] text-slate-400 text-center mt-2">
-                  Enter to send · Shift + Enter for a new line
-                </p>
+                {isListening && (
+
+                  <p className="text-[10px] sm:text-[11px] text-red-500 text-center mt-2 font-medium">
+                    🎙️ Listening... Please speak now.
+                  </p>
+
+                )}
+
+                {!isListening && (
+
+                  <p className="text-[10px] sm:text-[11px] text-slate-400 text-center mt-2">
+                    Enter to send · Shift + Enter for a new line · 🎤 Voice input
+                  </p>
+
+                )}
 
               </div>
 
             </div>
 
           </section>
+
         </div>
+
       </main>
+
     </div>
   );
 }

@@ -6,7 +6,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Document from "./pages/Document";
-import Chat from "./pages/Chat";
+import Chat from "./pages/Chat.jsx";
 import DataAnalysis from "./pages/DataAnalysis";
 import Notes from "./pages/Notes";
 import Files from "./pages/Files";
@@ -161,9 +161,17 @@ function App() {
     window.history.pushState({}, "", "/files");
   };
 
+  // --------------------------------------------------
+  // SHARED RESEARCH
+  // --------------------------------------------------
+
   if (page === "shared-research") {
     return <SharedResearch />;
   }
+
+  // --------------------------------------------------
+  // LOGIN
+  // --------------------------------------------------
 
   if (page === "login") {
     return (
@@ -176,6 +184,10 @@ function App() {
     );
   }
 
+  // --------------------------------------------------
+  // SIGNUP
+  // --------------------------------------------------
+
   if (page === "signup") {
     return (
       <div className="nova-route nova-route-auth">
@@ -185,6 +197,10 @@ function App() {
       </div>
     );
   }
+
+  // --------------------------------------------------
+  // DASHBOARD
+  // --------------------------------------------------
 
   if (page === "dashboard") {
     return (
@@ -196,6 +212,10 @@ function App() {
       </div>
     );
   }
+
+  // --------------------------------------------------
+  // WORKSPACE
+  // --------------------------------------------------
 
   if (page === "workspace") {
     return (
@@ -215,6 +235,10 @@ function App() {
     );
   }
 
+  // --------------------------------------------------
+  // DATA ANALYSIS
+  // --------------------------------------------------
+
   if (page === "data-analysis") {
     return (
       <div className="nova-route nova-route-app">
@@ -225,6 +249,10 @@ function App() {
       </div>
     );
   }
+
+  // --------------------------------------------------
+  // NOTES
+  // --------------------------------------------------
 
   if (page === "notes") {
     return (
@@ -237,6 +265,10 @@ function App() {
     );
   }
 
+  // --------------------------------------------------
+  // FILES
+  // --------------------------------------------------
+
   if (page === "files") {
     return (
       <div className="nova-route nova-route-app">
@@ -247,6 +279,10 @@ function App() {
       </div>
     );
   }
+
+  // --------------------------------------------------
+  // CHAT
+  // --------------------------------------------------
 
   if (page === "chat") {
     return (
@@ -259,6 +295,10 @@ function App() {
     );
   }
 
+  // --------------------------------------------------
+  // DOCUMENT
+  // --------------------------------------------------
+
   if (page === "document") {
     return (
       <div className="nova-route nova-route-app">
@@ -270,6 +310,10 @@ function App() {
     );
   }
 
+  // --------------------------------------------------
+  // CODING
+  // --------------------------------------------------
+
   if (page === "coding") {
     return (
       <div className="nova-route nova-route-app">
@@ -280,6 +324,10 @@ function App() {
       </div>
     );
   }
+
+  // --------------------------------------------------
+  // RESEARCH
+  // --------------------------------------------------
 
   if (page === "research") {
     return (

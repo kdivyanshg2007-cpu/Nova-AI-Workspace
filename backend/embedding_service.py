@@ -1,4 +1,5 @@
 from google import genai
+from google.genai.types import EmbedContentConfig
 
 from settings import settings
 
@@ -8,11 +9,12 @@ from settings import settings
 # =========================================================
 
 EMBEDDING_MODEL = "gemini-embedding-001"
+EMBEDDING_DIMENSION = 768
 
 
 def generate_embedding(text: str) -> list[float]:
     """
-    Generate an embedding vector for a single text chunk.
+    Generate a 768-dimensional embedding vector for text.
     """
 
     text = text.strip()
@@ -34,7 +36,11 @@ def generate_embedding(text: str) -> list[float]:
 
         response = client.models.embed_content(
             model=EMBEDDING_MODEL,
-            contents=text
+            contents=text,
+            config=EmbedContentConfig(
+                task_type="RETRIEVAL_QUERY",
+                output_dimensionality=EMBEDDING_DIMENSION,
+            ),
         )
 
         if not response.embeddings:
@@ -49,9 +55,19 @@ def generate_embedding(text: str) -> list[float]:
                 "Gemini returned an empty embedding vector."
             )
 
-        return list(
-            embedding.values
-        )
+        values = [
+            float(value)
+            for value in embedding.values
+        ]
+
+        if len(values) != EMBEDDING_DIMENSION:
+            raise RuntimeError(
+                f"Unexpected embedding dimension: "
+                f"{len(values)}. "
+                f"Expected {EMBEDDING_DIMENSION}."
+            )
+
+        return values
 
     except Exception as e:
         print(
@@ -66,7 +82,7 @@ def generate_embeddings(
     texts: list[str]
 ) -> list[list[float]]:
     """
-    Generate embeddings for multiple text chunks.
+    Generate 768-dimensional embeddings for multiple texts.
     """
 
     if not texts:
@@ -93,7 +109,11 @@ def generate_embeddings(
 
         response = client.models.embed_content(
             model=EMBEDDING_MODEL,
-            contents=cleaned_texts
+            contents=cleaned_texts,
+            config=EmbedContentConfig(
+                task_type="RETRIEVAL_DOCUMENT",
+                output_dimensionality=EMBEDDING_DIMENSION,
+            ),
         )
 
         if not response.embeddings:
@@ -110,9 +130,19 @@ def generate_embeddings(
                     "Gemini returned an empty embedding."
                 )
 
-            embeddings.append(
-                list(embedding.values)
-            )
+            values = [
+                float(value)
+                for value in embedding.values
+            ]
+
+            if len(values) != EMBEDDING_DIMENSION:
+                raise RuntimeError(
+                    f"Unexpected embedding dimension: "
+                    f"{len(values)}. "
+                    f"Expected {EMBEDDING_DIMENSION}."
+                )
+
+            embeddings.append(values)
 
         return embeddings
 
