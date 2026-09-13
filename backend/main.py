@@ -1633,6 +1633,33 @@ def get_data_analysis_chart(
 # WORKSPACE FILES
 # =========================================================
 
+ALLOWED_FILE_ROOTS = [
+    UPLOAD_DIR.resolve(),
+    DATA_ANALYSIS_UPLOAD_DIR.resolve(),
+]
+
+
+def is_safe_file_path(file_path: str) -> bool:
+    """
+    Allow file access only inside known upload directories.
+    Prevents path traversal / arbitrary file access.
+    """
+    try:
+        resolved_path = Path(file_path).resolve()
+
+        for allowed_root in ALLOWED_FILE_ROOTS:
+            try:
+                resolved_path.relative_to(allowed_root)
+                return True
+            except ValueError:
+                continue
+
+        return False
+
+    except Exception:
+        return False
+
+
 @app.get(
     "/api/v1/files"
 )
@@ -1748,6 +1775,10 @@ def download_workspace_file(
 ):
     """
     Download a file belonging to the authenticated user.
+
+    Security:
+    - User ownership is verified.
+    - File path must remain inside an approved upload directory.
     """
 
     if file_id <= 0:
@@ -1816,9 +1847,17 @@ def download_workspace_file(
             connection.close()
 
     try:
+        if not is_safe_file_path(file_path):
+            return {
+                "success": False,
+                "message": (
+                    "File access denied."
+                ),
+            }
+
         source_path = Path(
             file_path
-        )
+        ).resolve()
 
         if not source_path.exists():
             return {
@@ -1832,7 +1871,7 @@ def download_workspace_file(
         return FileResponse(
             path=source_path,
             media_type=mime_type,
-            filename=filename,
+            filename=Path(filename).name,
         )
 
     except Exception as error:
@@ -1961,10 +2000,10 @@ def delete_workspace_file(
             connection.close()
 
     try:
-        if file_path:
+        if file_path and is_safe_file_path(file_path):
             stored_path = Path(
                 file_path
-            )
+            ).resolve()
 
             if stored_path.exists():
                 stored_path.unlink()
@@ -1978,15 +2017,12 @@ def delete_workspace_file(
     return {
         "success": True,
         "message": (
-            f"File '{filename}' deleted successfully."
+            f"File '{Path(filename).name}' "
+            "deleted successfully."
         ),
         "file_id": file_id,
     }
 
-
-# =========================================================
-# DOCUMENT PROCESSING API
-# =========================================================
 
 @app.post(
     "/api/v1/documents/process"
