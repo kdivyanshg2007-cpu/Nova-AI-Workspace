@@ -835,6 +835,8 @@ async def upload_chat_attachment(
     connection = None
     cursor = None
     file_path = None
+    MAX_FILE_SIZE_MB = 25
+    MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
     processing_result = None
 
     try:
@@ -921,6 +923,23 @@ async def upload_chat_attachment(
             )
 
         file_size = file_path.stat().st_size
+
+        if file_size > MAX_FILE_SIZE_BYTES:
+            try:
+                file_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+            file_path = None
+
+            return {
+                "success": False,
+                "message": (
+                    f"File is too large. "
+                    f"Maximum allowed size is "
+                    f"{MAX_FILE_SIZE_MB} MB."
+                ),
+            }
 
         cursor.execute(
             """
