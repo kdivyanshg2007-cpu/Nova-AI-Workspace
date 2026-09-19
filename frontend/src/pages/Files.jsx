@@ -203,16 +203,15 @@ function Files({ workspace, onBack }) {
         return;
       }
 
-      if (!response.ok) {
-        setError(
-          getErrorMessage(
-            data,
-            `Upload failed. Status: ${response.status}`,
-          ),
-        );
-        return;
-      }
-
+      if (!response.ok || data.success === false) {
+  setError(
+    getErrorMessage(
+      data,
+      `Upload failed. Status: ${response.status}`,
+    ),
+  );
+  return;
+}
       setMessage(
         `${selectedFile.name} uploaded successfully ✅`,
       );
