@@ -52,12 +52,12 @@ def create_workspace(user_id: int, name: str):
             },
         }
 
-    except Exception as e:
+    except Exception:
         connection.rollback()
 
         return {
             "success": False,
-            "message": str(e),
+            "message": "Unable to create workspace. Please try again.",
         }
 
     finally:
@@ -131,10 +131,10 @@ def get_user_workspaces(
             "workspaces": workspaces,
         }
 
-    except Exception as e:
+    except Exception:
         return {
             "success": False,
-            "message": str(e),
+            "message": "Unable to load workspaces. Please try again.",
         }
 
     finally:
@@ -262,12 +262,12 @@ def rename_workspace(
             },
         }
 
-    except Exception as e:
+    except Exception:
         connection.rollback()
 
         return {
             "success": False,
-            "message": str(e),
+            "message": "Unable to rename workspace. Please try again.",
         }
 
     finally:
@@ -344,12 +344,12 @@ def archive_workspace(
             },
         }
 
-    except Exception as e:
+    except Exception:
         connection.rollback()
 
         return {
             "success": False,
-            "message": str(e),
+            "message": "Unable to archive workspace. Please try again.",
         }
 
     finally:
@@ -426,12 +426,12 @@ def unarchive_workspace(
             },
         }
 
-    except Exception as e:
+    except Exception:
         connection.rollback()
 
         return {
             "success": False,
-            "message": str(e),
+            "message": "Unable to restore workspace. Please try again.",
         }
 
     finally:
@@ -499,12 +499,12 @@ def delete_workspace(
             },
         }
 
-    except Exception as e:
+    except Exception:
         connection.rollback()
 
         return {
             "success": False,
-            "message": str(e),
+            "message": "Unable to delete workspace. Please try again.",
         }
 
     finally:

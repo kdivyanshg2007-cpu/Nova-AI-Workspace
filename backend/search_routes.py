@@ -244,7 +244,7 @@ def global_search(
     except Exception as e:
         return {
             "success": False,
-            "message": str(e),
+            "message": "Unable to complete search. Please try again.",
         }
 
     finally:

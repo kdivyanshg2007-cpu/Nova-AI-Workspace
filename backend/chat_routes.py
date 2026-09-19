@@ -143,7 +143,7 @@ def create_chat_message(
 
     except Exception as e:
         connection.rollback()
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": "Unable to complete the chat request. Please try again."}
     finally:
         cursor.close()
 
@@ -226,7 +226,7 @@ def create_chat_message(
         }
     except Exception as e:
         connection.rollback()
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": "Unable to complete the chat request. Please try again."}
     finally:
         cursor.close()
         connection.close()
@@ -272,7 +272,7 @@ def get_workspace_chat_messages(workspace_id: int, user_id: int, conversation_id
         ]
         return {"success": True, "messages": messages}
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": "Unable to complete the chat request. Please try again."}
     finally:
         cursor.close()
         connection.close()
@@ -304,7 +304,7 @@ def get_user_conversations(workspace_id: int, user_id: int):
         ]
         return {"success": True, "conversations": conversations}
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": "Unable to complete the chat request. Please try again."}
     finally:
         cursor.close()
         connection.close()
@@ -334,7 +334,7 @@ def create_new_conversation(workspace_id: int, user_id: int, title: str = "New C
         return {"success": True, "conversation": {"id": row[0], "title": row[1], "created_at": row[2], "updated_at": row[3]}}
     except Exception as e:
         connection.rollback()
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": "Unable to complete the chat request. Please try again."}
     finally:
         cursor.close()
         connection.close()
@@ -375,7 +375,7 @@ def rename_conversation(workspace_id: int, user_id: int, conversation_id: int, t
         return {"success": True, "conversation": {"id": row[0], "title": row[1], "created_at": row[2], "updated_at": row[3]}}
     except Exception as e:
         connection.rollback()
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": "Unable to complete the chat request. Please try again."}
     finally:
         cursor.close()
         connection.close()
@@ -416,7 +416,7 @@ def delete_conversation(workspace_id: int, user_id: int, conversation_id: int):
         return {"success": True, "message": "Conversation deleted successfully."}
     except Exception as e:
         connection.rollback()
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": "Unable to complete the chat request. Please try again."}
     finally:
         cursor.close()
         connection.close()

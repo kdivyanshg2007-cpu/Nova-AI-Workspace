@@ -1280,7 +1280,7 @@ async def analyze_data_file(
 
         return {
             "success": False,
-            "message": str(error),
+            "message": "Request could not be processed. Please try again.",
         }
 
     except ValueError as error:
@@ -1299,7 +1299,7 @@ async def analyze_data_file(
 
         return {
             "success": False,
-            "message": str(error),
+            "message": "Request could not be processed. Please try again.",
         }
 
     except Exception as error:
@@ -1477,7 +1477,7 @@ def download_data_analysis_report(
     except ValueError as error:
         return {
             "success": False,
-            "message": str(error),
+            "message": "Request could not be processed. Please try again.",
         }
 
     except Exception as error:
@@ -1489,7 +1489,7 @@ def download_data_analysis_report(
         return {
             "success": False,
             "message": (
-                f"Report generation failed: {str(error)}"
+                "Report generation failed. Please try again."
             ),
         }
 
@@ -2131,7 +2131,7 @@ def process_uploaded_document(
     except ValueError as error:
         return {
             "success": False,
-            "message": str(error),
+            "message": "Request could not be processed. Please try again.",
         }
 
     except Exception as error:
@@ -2143,7 +2143,7 @@ def process_uploaded_document(
         return {
             "success": False,
             "message": (
-                f"Document processing failed: {str(error)}"
+                "Document processing failed. Please try again."
             ),
         }
 

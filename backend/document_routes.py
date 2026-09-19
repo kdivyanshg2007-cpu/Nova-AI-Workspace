@@ -186,7 +186,10 @@ def search_document_chunks(
 
         return {
             "success": False,
-            "message": str(e),
+            "message": (
+                "Unable to complete vector search. "
+                "Please try again."
+            ),
             "chunks": [],
         }
 
@@ -307,12 +310,15 @@ def create_document(
             "embedded_chunk_count": embedded_chunk_count,
         }
 
-    except Exception as e:
+    except Exception:
         connection.rollback()
 
         return {
             "success": False,
-            "message": str(e),
+            "message": (
+                "Unable to create document. "
+                "Please try again."
+            ),
         }
 
     finally:
@@ -396,10 +402,13 @@ def get_workspace_documents(
             "documents": documents,
         }
 
-    except Exception as e:
+    except Exception:
         return {
             "success": False,
-            "message": str(e),
+            "message": (
+                "Unable to load workspace documents. "
+                "Please try again."
+            ),
         }
 
     finally:
@@ -525,12 +534,15 @@ def update_document(
             "embedded_chunk_count": embedded_chunk_count,
         }
 
-    except Exception as e:
+    except Exception:
         connection.rollback()
 
         return {
             "success": False,
-            "message": str(e),
+            "message": (
+                "Unable to update document. "
+                "Please try again."
+            ),
         }
 
     finally:
@@ -585,12 +597,15 @@ def delete_document(
             "document_id": deleted_document[0],
         }
 
-    except Exception as e:
+    except Exception:
         connection.rollback()
 
         return {
             "success": False,
-            "message": str(e),
+            "message": (
+                "Unable to delete document. "
+                "Please try again."
+            ),
         }
 
     finally:
@@ -655,10 +670,13 @@ def get_document(
             },
         }
 
-    except Exception as e:
+    except Exception:
         return {
             "success": False,
-            "message": str(e),
+            "message": (
+                "Unable to load document. "
+                "Please try again."
+            ),
         }
 
     finally:
@@ -741,10 +759,13 @@ def search_documents(
             "documents": documents,
         }
 
-    except Exception as e:
+    except Exception:
         return {
             "success": False,
-            "message": str(e),
+            "message": (
+                "Unable to search documents. "
+                "Please try again."
+            ),
         }
 
     finally:
