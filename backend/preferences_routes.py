@@ -13,9 +13,25 @@ router = APIRouter(
 
 
 class PreferencesUpdate(BaseModel):
-    language: Literal["en", "hi"] = "en"
+    language: Literal["en", "hi", "hinglish"] = "en"
     theme: Literal["light", "dark"] = "light"
-    model_preference: str = "gemini-3.6-flash"
+
+    model_preference: Literal[
+        "gemini-3.6-flash",
+        "gemini-3.1-pro-preview",
+    ] = "gemini-3.6-flash"
+
+    tone: Literal[
+        "friendly",
+        "professional",
+        "simple",
+    ] = "friendly"
+
+    response_length: Literal[
+        "concise",
+        "balanced",
+        "detailed",
+    ] = "balanced"
 
 
 def get_or_create_preferences(user_id: int):
@@ -30,6 +46,8 @@ def get_or_create_preferences(user_id: int):
                 language,
                 theme,
                 model_preference,
+                tone,
+                response_length,
                 created_at,
                 updated_at
             FROM user_preferences
@@ -47,14 +65,18 @@ def get_or_create_preferences(user_id: int):
                     user_id,
                     language,
                     theme,
-                    model_preference
+                    model_preference,
+                    tone,
+                    response_length
                 )
-                VALUES (%s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING
                     user_id,
                     language,
                     theme,
                     model_preference,
+                    tone,
+                    response_length,
                     created_at,
                     updated_at;
                 """,
@@ -63,6 +85,8 @@ def get_or_create_preferences(user_id: int):
                     "en",
                     "light",
                     "gemini-3.6-flash",
+                    "friendly",
+                    "balanced",
                 ),
             )
 
@@ -74,8 +98,10 @@ def get_or_create_preferences(user_id: int):
             "language": row[1],
             "theme": row[2],
             "model_preference": row[3],
-            "created_at": row[4],
-            "updated_at": row[5],
+            "tone": row[4],
+            "response_length": row[5],
+            "created_at": row[6],
+            "updated_at": row[7],
         }
 
     finally:
@@ -112,15 +138,19 @@ def update_preferences(
                 user_id,
                 language,
                 theme,
-                model_preference
+                model_preference,
+                tone,
+                response_length
             )
-            VALUES (%s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s)
 
             ON CONFLICT (user_id)
             DO UPDATE SET
                 language = EXCLUDED.language,
                 theme = EXCLUDED.theme,
                 model_preference = EXCLUDED.model_preference,
+                tone = EXCLUDED.tone,
+                response_length = EXCLUDED.response_length,
                 updated_at = CURRENT_TIMESTAMP
 
             RETURNING
@@ -128,6 +158,8 @@ def update_preferences(
                 language,
                 theme,
                 model_preference,
+                tone,
+                response_length,
                 created_at,
                 updated_at;
             """,
@@ -136,6 +168,8 @@ def update_preferences(
                 request.language,
                 request.theme,
                 request.model_preference,
+                request.tone,
+                request.response_length,
             ),
         )
 
@@ -150,8 +184,10 @@ def update_preferences(
                 "language": row[1],
                 "theme": row[2],
                 "model_preference": row[3],
-                "created_at": row[4],
-                "updated_at": row[5],
+                "tone": row[4],
+                "response_length": row[5],
+                "created_at": row[6],
+                "updated_at": row[7],
             },
         }
 

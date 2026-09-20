@@ -1,3 +1,6 @@
+import json
+import math
+
 from google import genai
 from google.genai.types import EmbedContentConfig, HttpOptions
 
@@ -103,6 +106,8 @@ def embedding_to_pgvector(
 ) -> str:
     """
     Convert a Python list into PostgreSQL pgvector format.
+
+    Kept for compatibility with other project code.
     """
 
     if not embedding:
@@ -129,7 +134,11 @@ def save_chunk_embedding(
     embedding: list[float],
 ) -> None:
     """
-    Save one chunk's embedding into PostgreSQL.
+    Save one chunk's embedding into:
+
+        document_chunk_embeddings
+
+    The embedding is stored as JSON.
     """
 
     if chunk_id <= 0:
@@ -143,8 +152,11 @@ def save_chunk_embedding(
             f"{EMBEDDING_DIMENSION} values."
         )
 
-    vector_value = embedding_to_pgvector(
-        embedding
+    embedding_json = json.dumps(
+        [
+            float(value)
+            for value in embedding
+        ]
     )
 
     connection = None
@@ -156,13 +168,17 @@ def save_chunk_embedding(
 
         cursor.execute(
             """
-            UPDATE document_chunks
-            SET embedding = %s::vector
-            WHERE id = %s;
+            INSERT INTO document_chunk_embeddings
+                (chunk_id, embedding)
+            VALUES
+                (%s, %s)
+            ON CONFLICT (chunk_id)
+            DO UPDATE SET
+                embedding = EXCLUDED.embedding;
             """,
             (
-                vector_value,
                 chunk_id,
+                embedding_json,
             ),
         )
 
@@ -193,6 +209,9 @@ def embed_document_chunks(
     Generate and save embeddings for all chunks
     belonging to one document.
 
+    Embeddings are stored in:
+        document_chunk_embeddings
+
     Returns:
         Number of successfully embedded chunks.
     """
@@ -207,13 +226,21 @@ def embed_document_chunks(
         connection = get_connection()
         cursor = connection.cursor()
 
+        # -----------------------------------------------------
+        # Find chunks that do not already have an embedding.
+        # -----------------------------------------------------
+
         cursor.execute(
             """
-            SELECT id, content
-            FROM document_chunks
-            WHERE document_id = %s
-            AND embedding IS NULL
-            ORDER BY chunk_index ASC;
+            SELECT
+                dc.id,
+                dc.content
+            FROM document_chunks dc
+            LEFT JOIN document_chunk_embeddings dce
+                ON dc.id = dce.chunk_id
+            WHERE dc.document_id = %s
+              AND dce.chunk_id IS NULL
+            ORDER BY dc.chunk_index ASC;
             """,
             (document_id,),
         )
@@ -222,6 +249,10 @@ def embed_document_chunks(
 
         embedded_count = 0
 
+        # -----------------------------------------------------
+        # Generate and store embeddings.
+        # -----------------------------------------------------
+
         for chunk_id, content in chunks:
 
             try:
@@ -229,19 +260,36 @@ def embed_document_chunks(
                     content
                 )
 
-                vector_value = embedding_to_pgvector(
-                    embedding
+                if not embedding:
+                    continue
+
+                if len(embedding) != EMBEDDING_DIMENSION:
+                    raise RuntimeError(
+                        f"Unexpected embedding dimension: "
+                        f"{len(embedding)}. "
+                        f"Expected {EMBEDDING_DIMENSION}."
+                    )
+
+                embedding_json = json.dumps(
+                    [
+                        float(value)
+                        for value in embedding
+                    ]
                 )
 
                 cursor.execute(
                     """
-                    UPDATE document_chunks
-                    SET embedding = %s::vector
-                    WHERE id = %s;
+                    INSERT INTO document_chunk_embeddings
+                        (chunk_id, embedding)
+                    VALUES
+                        (%s, %s)
+                    ON CONFLICT (chunk_id)
+                    DO UPDATE SET
+                        embedding = EXCLUDED.embedding;
                     """,
                     (
-                        vector_value,
                         chunk_id,
+                        embedding_json,
                     ),
                 )
 
@@ -260,6 +308,11 @@ def embed_document_chunks(
                 )
 
         connection.commit()
+
+        print(
+            "RAG EMBEDDING TOTAL:",
+            embedded_count,
+        )
 
         return embedded_count
 
@@ -345,8 +398,21 @@ def search_similar_chunks(
     limit: int = 5,
 ) -> list[dict]:
     """
-    Search document chunks using vector similarity.
+    Search document chunks using stored embeddings.
+
+    Embeddings are read from:
+        document_chunk_embeddings
+
+    Document/chunk data are read from:
+        document_chunks
+        files
+
+    Similarity is calculated in Python using cosine similarity.
     """
+
+    # ---------------------------------------------------------
+    # BASIC VALIDATION
+    # ---------------------------------------------------------
 
     if workspace_id <= 0:
         return []
@@ -354,26 +420,72 @@ def search_similar_chunks(
     if user_id <= 0:
         return []
 
-    query = str(query or "").strip()
+    query = str(
+        query or ""
+    ).strip()
 
     if not query:
         return []
 
     limit = max(
         1,
-        min(limit, 20),
+        min(
+            int(limit),
+            20,
+        ),
     )
 
-    query_embedding = generate_query_embedding(
-        query
-    )
+    # ---------------------------------------------------------
+    # GENERATE QUERY EMBEDDING
+    # ---------------------------------------------------------
 
-    if not query_embedding:
+    try:
+        query_embedding = generate_query_embedding(
+            query
+        )
+
+    except Exception as embedding_error:
+        print(
+            "RAG QUERY EMBEDDING ERROR:",
+            repr(embedding_error),
+        )
         return []
 
-    query_vector = embedding_to_pgvector(
-        query_embedding
+    if not query_embedding:
+        print(
+            "RAG SEARCH: query embedding not generated"
+        )
+        return []
+
+    # ---------------------------------------------------------
+    # QUERY VECTOR NORMALIZATION
+    # ---------------------------------------------------------
+
+    try:
+        query_embedding = [
+            float(value)
+            for value in query_embedding
+        ]
+
+    except Exception as conversion_error:
+        print(
+            "RAG QUERY EMBEDDING CONVERSION ERROR:",
+            repr(conversion_error),
+        )
+        return []
+
+    query_norm = math.sqrt(
+        sum(
+            value * value
+            for value in query_embedding
+        )
     )
+
+    if query_norm == 0:
+        print(
+            "RAG SEARCH: query embedding norm is zero"
+        )
+        return []
 
     connection = None
     cursor = None
@@ -382,44 +494,209 @@ def search_similar_chunks(
         connection = get_connection()
         cursor = connection.cursor()
 
+        # -----------------------------------------------------
+        # GET CHUNKS + STORED EMBEDDINGS
+        # -----------------------------------------------------
+
         cursor.execute(
             """
             SELECT
                 dc.id,
                 dc.document_id,
+                dc.file_id,
+                dc.workspace_id,
                 dc.chunk_index,
+                dc.page,
                 dc.content,
-                dc.embedding <=> %s::vector AS distance
+                dce.embedding,
+                f.filename
             FROM document_chunks dc
+            INNER JOIN document_chunk_embeddings dce
+                ON dc.id = dce.chunk_id
+            INNER JOIN files f
+                ON dc.file_id = f.id
             WHERE dc.workspace_id = %s
-            AND dc.user_id = %s
-            AND dc.embedding IS NOT NULL
-            ORDER BY dc.embedding <=> %s::vector
-            LIMIT %s;
+              AND f.user_id = %s
+              AND dce.embedding IS NOT NULL
             """,
             (
-                query_vector,
                 workspace_id,
                 user_id,
-                query_vector,
-                limit,
             ),
         )
 
         rows = cursor.fetchall()
 
-        return [
-            {
-                "chunk_id": row[0],
-                "document_id": row[1],
-                "chunk_index": row[2],
-                "content": row[3],
-                "distance": float(row[4]),
-            }
-            for row in rows
-        ]
+        print(
+            "RAG SEARCH: embedded chunks found =",
+            len(rows),
+        )
+
+        if not rows:
+            return []
+
+        # -----------------------------------------------------
+        # CALCULATE COSINE SIMILARITY
+        # -----------------------------------------------------
+
+        results = []
+
+        for row in rows:
+
+            chunk_id = row[0]
+            document_id = row[1]
+            file_id = row[2]
+            stored_workspace_id = row[3]
+            chunk_index = row[4]
+            page = row[5]
+            content = row[6]
+            stored_embedding = row[7]
+            filename = row[8]
+
+            if not stored_embedding:
+                continue
+
+            try:
+                # -------------------------------------------------
+                # Convert stored JSON/string to Python list.
+                # -------------------------------------------------
+
+                if isinstance(
+                    stored_embedding,
+                    str,
+                ):
+                    stored_embedding = json.loads(
+                        stored_embedding
+                    )
+
+                stored_embedding = [
+                    float(value)
+                    for value in stored_embedding
+                ]
+
+                # -------------------------------------------------
+                # Dimension check
+                # -------------------------------------------------
+
+                if (
+                    len(stored_embedding)
+                    != len(query_embedding)
+                ):
+                    print(
+                        "RAG SEARCH: embedding dimension mismatch "
+                        f"for chunk_id={chunk_id}"
+                    )
+                    continue
+
+                stored_norm = math.sqrt(
+                    sum(
+                        value * value
+                        for value in stored_embedding
+                    )
+                )
+
+                if stored_norm == 0:
+                    continue
+
+                # -------------------------------------------------
+                # Dot product
+                # -------------------------------------------------
+
+                dot_product = sum(
+                    query_value * document_value
+                    for query_value, document_value in zip(
+                        query_embedding,
+                        stored_embedding,
+                    )
+                )
+
+                # -------------------------------------------------
+                # Cosine similarity
+                # -------------------------------------------------
+
+                similarity = (
+                    dot_product
+                    / (
+                        query_norm
+                        * stored_norm
+                    )
+                )
+
+                # -------------------------------------------------
+                # Cosine distance
+                # -------------------------------------------------
+
+                distance = 1.0 - similarity
+
+            except Exception as embedding_error:
+
+                print(
+                    "RAG EMBEDDING PARSE ERROR:",
+                    repr(embedding_error),
+                )
+
+                continue
+
+            results.append(
+                {
+                    "chunk_id": chunk_id,
+                    "document_id": document_id,
+                    "file_id": file_id,
+                    "workspace_id": stored_workspace_id,
+                    "chunk_index": chunk_index,
+                    "page": page,
+                    "filename": filename,
+                    "content": content,
+                    "similarity": similarity,
+                    "distance": distance,
+                }
+            )
+
+        # -----------------------------------------------------
+        # SORT BY HIGHEST SIMILARITY
+        # -----------------------------------------------------
+
+        results.sort(
+            key=lambda item: item["similarity"],
+            reverse=True,
+        )
+
+        # -----------------------------------------------------
+        # TOP RESULTS
+        # -----------------------------------------------------
+
+        final_results = results[:limit]
+
+        print(
+            "RAG SEARCH: returning",
+            len(final_results),
+            "chunks",
+        )
+
+        for index, item in enumerate(
+            final_results,
+            start=1,
+        ):
+            print(
+                f"RAG RESULT {index}:",
+                f"chunk_id={item['chunk_id']}",
+                f"document_id={item['document_id']}",
+                f"similarity={item['similarity']:.4f}",
+            )
+
+        return final_results
+
+    except Exception as error:
+
+        print(
+            "RAG SEARCH ERROR:",
+            repr(error),
+        )
+
+        return []
 
     finally:
+
         if cursor is not None:
             cursor.close()
 

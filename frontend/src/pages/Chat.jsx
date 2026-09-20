@@ -120,6 +120,54 @@ function Chat({ workspace, onBack }) {
     )}px`;
   };
 
+  const getResponseSourceLabel = (item) => {
+    const source =
+      item?.source ||
+      item?.source_name ||
+      item?.metadata?.source ||
+      item?.metadata?.source_name;
+
+    if (typeof source === "string" && source.trim()) {
+      return source.trim();
+    }
+
+    if (item?.file_id) {
+      return "Attached file";
+    }
+
+    return "Nova AI";
+  };
+
+  const getResponseConfidenceLabel = (item) => {
+    const rawConfidence =
+      item?.confidence ??
+      item?.confidence_score ??
+      item?.metadata?.confidence ??
+      item?.metadata?.confidence_score;
+
+    if (
+      typeof rawConfidence === "number" &&
+      Number.isFinite(rawConfidence)
+    ) {
+      const normalized =
+        rawConfidence <= 1
+          ? rawConfidence * 100
+          : rawConfidence;
+
+      return `${Math.round(normalized)}%`;
+    }
+
+    if (typeof rawConfidence === "string") {
+      const trimmedConfidence = rawConfidence.trim();
+
+      if (trimmedConfidence) {
+        return trimmedConfidence;
+      }
+    }
+
+    return "Not provided";
+  };
+
   const getFriendlyAIError = (
     responseStatus,
     backendMessage
@@ -2297,6 +2345,24 @@ function Chat({ workspace, onBack }) {
                             </ReactMarkdown>
 
                           </div>
+
+                          {item.role === "assistant" && (
+                            <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                              <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+                                <span>Source:</span>
+                                <span className="font-medium text-slate-700">
+                                  {getResponseSourceLabel(item)}
+                                </span>
+                              </span>
+
+                              <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+                                <span>Confidence:</span>
+                                <span className="font-medium text-slate-700">
+                                  {getResponseConfidenceLabel(item)}
+                                </span>
+                              </span>
+                            </div>
+                          )}
 
                           {item.role === "assistant" && (
 

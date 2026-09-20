@@ -83,6 +83,13 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
     model_preference:
       localStorage.getItem("nova_model_preference") ||
       "gemini-3.6-flash",
+
+    tone:
+      localStorage.getItem("nova_tone") || "friendly",
+
+    response_length:
+      localStorage.getItem("nova_response_length") ||
+      "balanced",
   }));
 
   const [loadingPreferences, setLoadingPreferences] =
@@ -126,6 +133,17 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
       "nova_model_preference",
       nextPreferences.model_preference ||
         "gemini-3.6-flash"
+    );
+
+    localStorage.setItem(
+      "nova_tone",
+      nextPreferences.tone || "friendly"
+    );
+
+    localStorage.setItem(
+      "nova_response_length",
+      nextPreferences.response_length ||
+        "balanced"
     );
 
     applyTheme(nextPreferences.theme);
@@ -206,6 +224,13 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
           model_preference:
             data.preferences.model_preference ||
             "gemini-3.6-flash",
+
+          tone:
+            data.preferences.tone || "friendly",
+
+          response_length:
+            data.preferences.response_length ||
+            "balanced",
         };
 
         setPreferences(nextPreferences);
@@ -276,6 +301,13 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
           model_preference:
             data.preferences.model_preference ||
             "gemini-3.6-flash",
+
+          tone:
+            data.preferences.tone || "friendly",
+
+          response_length:
+            data.preferences.response_length ||
+            "balanced",
         };
 
         setPreferences(nextPreferences);
@@ -1539,7 +1571,7 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
               </h3>
 
               <p className="text-sm text-slate-500 mt-1">
-                Customize language, theme, and your preferred AI model.
+                Customize language, theme, AI model, tone, and response length.
               </p>
             </div>
 
@@ -1551,23 +1583,21 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+
+            {/* LANGUAGE */}
+
             <label className="block">
               <span className="block text-sm font-medium text-slate-700 mb-2">
                 Language
               </span>
 
               <select
-                value={
-                  preferences.language
-                }
+                value={preferences.language}
                 onChange={(e) =>
-                  setPreferences(
-                    (current) => ({
-                      ...current,
-                      language:
-                        e.target.value,
-                    })
-                  )
+                  setPreferences((current) => ({
+                    ...current,
+                    language: e.target.value,
+                  }))
                 }
                 disabled={
                   loadingPreferences ||
@@ -1582,8 +1612,15 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
                 <option value="hi">
                   Hindi
                 </option>
+
+                <option value="hinglish">
+                  Hindi + English (Hinglish)
+                </option>
               </select>
             </label>
+
+
+            {/* THEME */}
 
             <label className="block">
               <span className="block text-sm font-medium text-slate-700 mb-2">
@@ -1591,23 +1628,17 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
               </span>
 
               <select
-                value={
-                  preferences.theme
-                }
+                value={preferences.theme}
                 onChange={(e) => {
                   const nextTheme =
                     e.target.value;
 
-                  setPreferences(
-                    (current) => ({
-                      ...current,
-                      theme: nextTheme,
-                    })
-                  );
+                  setPreferences((current) => ({
+                    ...current,
+                    theme: nextTheme,
+                  }));
 
-                  applyTheme(
-                    nextTheme
-                  );
+                  applyTheme(nextTheme);
                 }}
                 disabled={
                   loadingPreferences ||
@@ -1625,23 +1656,22 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
               </select>
             </label>
 
+
+            {/* AI MODEL */}
+
             <label className="block">
               <span className="block text-sm font-medium text-slate-700 mb-2">
                 AI Model
               </span>
 
               <select
-                value={
-                  preferences.model_preference
-                }
+                value={preferences.model_preference}
                 onChange={(e) =>
-                  setPreferences(
-                    (current) => ({
-                      ...current,
-                      model_preference:
-                        e.target.value,
-                    })
-                  )
+                  setPreferences((current) => ({
+                    ...current,
+                    model_preference:
+                      e.target.value,
+                  }))
                 }
                 disabled={
                   loadingPreferences ||
@@ -1656,12 +1686,82 @@ function Dashboard({ onLogout, onOpenWorkspace }) {
                 <option value="gemini-3.6-pro">
                   Gemini 3.6 Pro
                 </option>
+              </select>
+            </label>
 
-                <option value="gpt-5.6">
-                  GPT-5.6
+
+            {/* TONE */}
+
+            <label className="block">
+              <span className="block text-sm font-medium text-slate-700 mb-2">
+                Tone
+              </span>
+
+              <select
+                value={preferences.tone}
+                onChange={(e) =>
+                  setPreferences((current) => ({
+                    ...current,
+                    tone: e.target.value,
+                  }))
+                }
+                disabled={
+                  loadingPreferences ||
+                  savingPreferences
+                }
+                className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-900 bg-white outline-none focus:ring-2 focus:ring-slate-900 disabled:opacity-50"
+              >
+                <option value="friendly">
+                  Friendly
+                </option>
+
+                <option value="professional">
+                  Professional
+                </option>
+
+                <option value="simple">
+                  Simple
                 </option>
               </select>
             </label>
+
+
+            {/* RESPONSE LENGTH */}
+
+            <label className="block">
+              <span className="block text-sm font-medium text-slate-700 mb-2">
+                Response Length
+              </span>
+
+              <select
+                value={preferences.response_length}
+                onChange={(e) =>
+                  setPreferences((current) => ({
+                    ...current,
+                    response_length:
+                      e.target.value,
+                  }))
+                }
+                disabled={
+                  loadingPreferences ||
+                  savingPreferences
+                }
+                className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-900 bg-white outline-none focus:ring-2 focus:ring-slate-900 disabled:opacity-50"
+              >
+                <option value="concise">
+                  Concise
+                </option>
+
+                <option value="balanced">
+                  Balanced
+                </option>
+
+                <option value="detailed">
+                  Detailed
+                </option>
+              </select>
+            </label>
+
           </div>
 
           <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

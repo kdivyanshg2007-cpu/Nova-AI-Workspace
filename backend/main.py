@@ -2375,8 +2375,8 @@ def export_research_xlsx(
 )
 @limiter.limit("20/minute")
 def run_coding_agent(
-    http_request: Request,
-    request: CodingRequest,
+    request: Request,
+    coding_request: CodingRequest,
     workspace_id: int,
     current_user: dict = Depends(
         get_current_user
@@ -2412,10 +2412,10 @@ def run_coding_agent(
             ),
         }
 
-    task = request.task.strip()
-    code = request.code
-    language = request.language.strip().lower()
-    operation = request.operation.strip().lower()
+    task = coding_request.task.strip()
+    code = coding_request.code
+    language = coding_request.language.strip().lower()
+    operation = coding_request.operation.strip().lower()
 
     if not task and not code.strip():
         return {

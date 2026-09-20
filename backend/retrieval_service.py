@@ -394,9 +394,7 @@ def retrieve_relevant_chunks(
 
         # -------------------------------------------------
         # CASE 1:
-        # Render schema
-        #
-        # document_chunks.embedding = pgvector
+        # Direct embedding inside document_chunks
         # -------------------------------------------------
 
         if has_direct_embedding:
@@ -423,17 +421,23 @@ def retrieve_relevant_chunks(
                     dc.chunk_index,
                     dc.content,
                     dc.embedding,
-                    d.title
+                    COALESCE(
+                        d.title,
+                        f.filename,
+                        'unknown'
+                    ) AS title,
+                    {select_file_id},
+                    {select_page}
                 FROM document_chunks dc
-                INNER JOIN documents d
+                LEFT JOIN documents d
                     ON dc.document_id = d.id
+                LEFT JOIN files f
+                    ON dc.file_id = f.id
                 WHERE dc.workspace_id = %s
-                  AND d.workspace_id = %s
                   AND dc.embedding IS NOT NULL
                 ORDER BY dc.id ASC;
                 """,
                 (
-                    workspace_id,
                     workspace_id,
                 ),
             )
@@ -449,7 +453,7 @@ def retrieve_relevant_chunks(
 
         # -------------------------------------------------
         # CASE 2:
-        # Local schema
+        # Separate embedding table
         #
         # document_chunks has no embedding
         # and document_chunk_embeddings has JSONB
@@ -479,18 +483,24 @@ def retrieve_relevant_chunks(
                     dc.chunk_index,
                     dc.content,
                     dce.embedding,
-                    d.title
+                    COALESCE(
+                        d.title,
+                        f.filename,
+                        'unknown'
+                    ) AS title,
+                    {select_file_id},
+                    {select_page}
                 FROM document_chunks dc
-                INNER JOIN documents d
-                    ON dc.document_id = d.id
                 INNER JOIN document_chunk_embeddings dce
                     ON dc.id = dce.chunk_id
+                LEFT JOIN documents d
+                    ON dc.document_id = d.id
+                LEFT JOIN files f
+                    ON dc.file_id = f.id
                 WHERE dc.workspace_id = %s
-                  AND d.workspace_id = %s
                 ORDER BY dc.id ASC;
                 """,
                 (
-                    workspace_id,
                     workspace_id,
                 ),
             )
@@ -533,17 +543,29 @@ def retrieve_relevant_chunks(
         for row in rows:
 
             chunk_id = row[0]
+
             document_id = row[1]
+
             row_workspace_id = row[2]
+
             user_id = row[3]
+
             chunk_index = row[4]
+
             content = row[5]
+
             stored_embedding = row[6]
+
             filename = row[7] or "unknown"
+
+            row_file_id = row[8]
+
+            row_page = row[9]
 
             try:
 
                 if direct_vector_mode:
+
                     stored_vector = (
                         parse_pgvector(
                             stored_embedding
@@ -551,6 +573,7 @@ def retrieve_relevant_chunks(
                     )
 
                 else:
+
                     stored_vector = (
                         parse_json_embedding(
                             stored_embedding
@@ -596,11 +619,7 @@ def retrieve_relevant_chunks(
                 {
                     "chunk_id": chunk_id,
                     "document_id": document_id,
-                    "file_id": (
-                        None
-                        if not has_file_id
-                        else None
-                    ),
+                    "file_id": row_file_id,
                     "workspace_id": (
                         row_workspace_id
                     ),
@@ -611,7 +630,7 @@ def retrieve_relevant_chunks(
                             filename
                         )
                     ),
-                    "page": None,
+                    "page": row_page,
                     "chunk_index": chunk_index,
                     "content": content,
                     "similarity": (
@@ -634,6 +653,7 @@ def retrieve_relevant_chunks(
         # -------------------------------------------------
 
         unique_chunks = []
+
         seen_chunks = set()
 
         for item in candidates:
@@ -673,6 +693,7 @@ def retrieve_relevant_chunks(
             )
 
             if logical_name not in documents:
+
                 documents[logical_name] = []
 
             documents[logical_name].append(
@@ -751,6 +772,7 @@ def retrieve_relevant_chunks(
         if intent == "progress":
 
             progress_docs = []
+
             other_docs = []
 
             for document in ranked_documents:
@@ -765,11 +787,13 @@ def retrieve_relevant_chunks(
                     or "progress"
                     in name
                 ):
+
                     progress_docs.append(
                         document
                     )
 
                 else:
+
                     other_docs.append(
                         document
                     )
@@ -850,6 +874,7 @@ def retrieve_relevant_chunks(
     finally:
 
         cursor.close()
+
         connection.close()
 
 

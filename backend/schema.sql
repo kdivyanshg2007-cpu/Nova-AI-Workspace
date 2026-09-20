@@ -247,10 +247,27 @@ CREATE TABLE IF NOT EXISTS user_preferences (
 
     model_preference VARCHAR(50) NOT NULL DEFAULT 'gemini-3.6-flash',
 
+    tone VARCHAR(20) NOT NULL DEFAULT 'friendly',
+
+    response_length VARCHAR(20) NOT NULL DEFAULT 'balanced',
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+-- =========================================================
+-- DAY 39 — USER PREFERENCES MIGRATION
+-- =========================================================
+
+ALTER TABLE user_preferences
+ADD COLUMN IF NOT EXISTS tone VARCHAR(20)
+NOT NULL DEFAULT 'friendly';
+
+ALTER TABLE user_preferences
+ADD COLUMN IF NOT EXISTS response_length VARCHAR(20)
+NOT NULL DEFAULT 'balanced';
 
 
 -- =========================================================

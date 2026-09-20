@@ -1,10 +1,15 @@
 from pathlib import Path
+import time
+import logging
 
 from google import genai
-from google.genai.types import HttpOptions
+from google.genai.types import HttpOptions, GenerateContentConfig
 
 from database import get_connection
 from settings import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 NOVA_SYSTEM_INSTRUCTION = """
@@ -40,6 +45,12 @@ When relevant document context is provided:
 - Do not invent facts that are not supported by the provided document context.
 - If the document context does not contain the answer, clearly say that the information was not found in the provided documents.
 """
+
+
+SUPPORTED_MODELS = {
+    "gemini-3.6-flash",
+    "gemini-3.1-pro-preview",
+}
 
 
 def load_user_memories(user_id: int) -> list[dict[str, str]]:
@@ -87,51 +98,234 @@ def load_user_memories(user_id: int) -> list[dict[str, str]]:
             connection.close()
 
 
-def build_memory_context(memories: list[dict[str, str]]) -> str:
+def load_user_preferences(user_id: int) -> dict[str, str]:
+    """Load personalization settings for the current user."""
+
+    defaults = {
+        "language": "en",
+        "model_preference": "gemini-3.6-flash",
+        "tone": "friendly",
+        "response_length": "balanced",
+    }
+
+    if user_id <= 0:
+        return defaults
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                language,
+                model_preference,
+                tone,
+                response_length
+            FROM user_preferences
+            WHERE user_id = %s;
+            """,
+            (user_id,),
+        )
+
+        row = cursor.fetchone()
+
+        if row is None:
+            return defaults
+
+        model_preference = str(row[1] or "").strip()
+
+        language = str(row[0] or "en").strip() or "en"
+
+        if language not in {
+            "en",
+            "hi",
+            "hinglish",
+        }:
+            language = "en"
+
+        return {
+            "language": language,
+            "model_preference": (
+                model_preference
+                if model_preference in SUPPORTED_MODELS
+                else defaults["model_preference"]
+            ),
+            "tone": (
+                str(row[2] or "friendly").strip()
+                or "friendly"
+            ),
+            "response_length": (
+                str(row[3] or "balanced").strip()
+                or "balanced"
+            ),
+        }
+
+    except Exception as e:
+        print(
+            "PREFERENCES LOAD ERROR:",
+            repr(e),
+        )
+        return defaults
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None:
+            connection.close()
+
+
+def build_memory_context(
+    memories: list[dict[str, str]]
+) -> str:
     """Convert stored memories into safe context for Nova."""
 
     if not memories:
-        return "No saved user memories are available."
+        return (
+            "No saved user memories are available."
+        )
 
     lines = [
         "Saved memory for the current user:",
     ]
 
     for memory in memories:
-        key = str(memory.get("key", "")).strip()
-        value = str(memory.get("value", "")).strip()
+        key = str(
+            memory.get("key", "")
+        ).strip()
+
+        value = str(
+            memory.get("value", "")
+        ).strip()
 
         if not key or not value:
             continue
 
-        lines.append(f"- {key}: {value}")
+        lines.append(
+            f"- {key}: {value}"
+        )
 
     if len(lines) == 1:
-        return "No saved user memories are available."
+        return (
+            "No saved user memories are available."
+        )
 
     return "\n".join(lines)
 
 
-def get_friendly_gemini_error(error: Exception) -> str:
-    """
-    Convert Gemini runtime errors into user-friendly Nova messages.
-    """
+def build_personalization_instruction(
+    preferences: dict[str, str]
+) -> str:
+    """Build user-specific language, tone, and length instructions."""
+
+    language = preferences.get(
+        "language",
+        "en",
+    )
+
+    tone = preferences.get(
+        "tone",
+        "friendly",
+    )
+
+    response_length = preferences.get(
+        "response_length",
+        "balanced",
+    )
+
+    language_instruction = {
+        "en": (
+            "Respond only in English. "
+            "Do not mix Hindi into the response "
+            "unless the user explicitly asks for Hindi or Hinglish."
+        ),
+        "hi": (
+            "Respond only in Hindi. "
+            "Use Hindi for normal explanations and sentences. "
+            "Keep only necessary technical terms, code, product names, "
+            "or standard English terminology in English."
+        ),
+        "hinglish": (
+            "Respond naturally in Hinglish: "
+            "mix Hindi and English in the same response "
+            "in a clear, conversational way. "
+            "Use English technical terms naturally where appropriate."
+        ),
+    }.get(
+        language,
+        "Respond only in English.",
+    )
+
+    tone_instruction = {
+        "friendly": (
+            "Use a warm, approachable, and helpful tone."
+        ),
+        "professional": (
+            "Use a professional, polished, and precise tone."
+        ),
+        "simple": (
+            "Use very simple language and explain concepts "
+            "in an easy-to-understand way."
+        ),
+    }.get(
+        tone,
+        "Use a warm, approachable, and helpful tone.",
+    )
+
+    length_instruction = {
+        "concise": (
+            "Keep responses concise and focus "
+            "on the essential information."
+        ),
+        "balanced": (
+            "Give a balanced response with enough explanation "
+            "to be useful without unnecessary length."
+        ),
+        "detailed": (
+            "Give a detailed response with clear explanations, "
+            "relevant examples, and useful context."
+        ),
+    }.get(
+        response_length,
+        (
+            "Give a balanced response with enough explanation "
+            "to be useful without unnecessary length."
+        ),
+    )
+
+    return (
+        "User personalization preferences:\n"
+        f"- Language: {language_instruction}\n"
+        f"- Tone: {tone_instruction}\n"
+        f"- Response length: {length_instruction}\n"
+        "Follow these preferences unless they conflict "
+        "with higher-priority safety or system instructions."
+    )
+
+
+def get_friendly_gemini_error(
+    error: Exception
+) -> str:
+    """Convert Gemini runtime errors into user-friendly Nova messages."""
 
     error_text = str(error).lower()
 
-    # 503 / service unavailable / high demand
     if (
         "503" in error_text
         or "unavailable" in error_text
         or "high demand" in error_text
-        or "currently experiencing high demand" in error_text
+        or "currently experiencing high demand"
+        in error_text
     ):
         return (
             "Nova is temporarily busy because the AI service "
             "is experiencing high demand. Please try again in a moment."
         )
 
-    # 429 / quota / rate limit
     if (
         "429" in error_text
         or "resource_exhausted" in error_text
@@ -141,10 +335,10 @@ def get_friendly_gemini_error(error: Exception) -> str:
     ):
         return (
             "Nova is temporarily unavailable because the AI service "
-            "quota or rate limit has been reached. Please try again later."
+            "quota or rate limit has been reached. "
+            "Please try again later."
         )
 
-    # Authentication / API key
     if (
         "401" in error_text
         or "403" in error_text
@@ -157,7 +351,6 @@ def get_friendly_gemini_error(error: Exception) -> str:
             "Please check the AI service configuration."
         )
 
-    # Timeout / network
     if (
         "timeout" in error_text
         or "timed out" in error_text
@@ -175,6 +368,79 @@ def get_friendly_gemini_error(error: Exception) -> str:
     )
 
 
+def check_daily_ai_budget(
+    user_id: int | None,
+    daily_budget: int = 50000,
+) -> bool:
+    """
+    Return True when the user's daily token budget is available.
+    Return False when the budget has been reached.
+    """
+
+    if not user_id or user_id <= 0:
+        return True
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        budget_sql = (
+            "SELECT COALESCE(SUM(total_tokens), 0) "
+            "FROM ai_usage_logs "
+            "WHERE user_id = %s "
+            "AND created_at >= CURRENT_DATE;"
+        )
+
+        cursor.execute(
+            budget_sql,
+            (user_id,),
+        )
+
+        result = cursor.fetchone()
+
+        used_tokens = int(
+            result[0] or 0
+        ) if result else 0
+
+        print(
+            "AI DAILY TOKENS:",
+            used_tokens,
+            "/",
+            daily_budget,
+        )
+
+        if used_tokens >= daily_budget:
+            return False
+
+        return True
+
+    except Exception as budget_error:
+        print(
+            "AI BUDGET CHECK ERROR:",
+            repr(budget_error),
+        )
+
+        # Budget check is best-effort.
+        # Do not block the AI if the budget query itself fails.
+        return True
+
+    finally:
+        if cursor is not None:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+
+        if connection is not None:
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+
 def generate_ai_response(
     message: str,
     conversation_history: list | None = None,
@@ -182,17 +448,7 @@ def generate_ai_response(
     user_id: int | None = None,
     workspace_id: int | None = None,
 ) -> str:
-    """
-    Generate a Nova AI response using Gemini.
-
-    Supports:
-    - normal text conversations
-    - optional uploaded files
-    - image understanding
-    - conversation history
-    - user-specific saved memory
-    - RAG document context
-    """
+    """Generate a Nova AI response using Gemini."""
 
     message = message.strip()
 
@@ -203,15 +459,32 @@ def generate_ai_response(
         settings.GEMINI_API_KEY or ""
     ).strip()
 
-    model_name = str(
+    configured_model_name = str(
         settings.GEMINI_MODEL or ""
     ).strip()
 
     if not api_key:
-        return "Gemini API key is not configured."
+        return (
+            "Gemini API key is not configured."
+        )
 
-    if not model_name:
-        return "Gemini model is not configured."
+    if not configured_model_name:
+        return (
+            "Gemini model is not configured."
+        )
+
+    # =========================================================
+    # DAILY AI BUDGET SAFEGUARD
+    # =========================================================
+
+    if not check_daily_ai_budget(
+        user_id=user_id,
+        daily_budget=50000,
+    ):
+        return (
+            "Your daily AI usage limit has been reached. "
+            "Please try again tomorrow."
+        )
 
     try:
         client = genai.Client(
@@ -222,8 +495,23 @@ def generate_ai_response(
         )
 
         # =====================================================
-        # LOAD USER MEMORY
+        # LOAD USER PERSONALIZATION + MEMORY
         # =====================================================
+
+        preferences = load_user_preferences(
+            user_id=user_id or 0
+        )
+
+        model_name = preferences.get(
+            "model_preference",
+            configured_model_name,
+        )
+
+        if model_name not in SUPPORTED_MODELS:
+            model_name = configured_model_name
+
+        if model_name not in SUPPORTED_MODELS:
+            model_name = "gemini-3.6-flash"
 
         memories = load_user_memories(
             user_id=user_id or 0
@@ -233,23 +521,26 @@ def generate_ai_response(
             memories
         )
 
-        # =====================================================
-        # BUILD CONVERSATION CONTENT
-        # =====================================================
+        personalized_system_instruction = (
+            NOVA_SYSTEM_INSTRUCTION.strip()
+            + "\n\n"
+            + build_personalization_instruction(
+                preferences
+            )
+        )
 
         contents = []
 
-        # Nova system instructions + memory
+        # =====================================================
+        # MEMORY CONTEXT
+        # =====================================================
+
         contents.append(
             {
                 "role": "user",
                 "parts": [
                     {
-                        "text": (
-                            NOVA_SYSTEM_INSTRUCTION.strip()
-                            + "\n\n"
-                            + memory_context
-                        )
+                        "text": memory_context
                     }
                 ],
             }
@@ -300,24 +591,28 @@ def generate_ai_response(
 
         if workspace_id and user_id:
             try:
-                from rag_service import search_similar_chunks
+                from rag_service import (
+                    search_similar_chunks
+                )
 
-                relevant_chunks = search_similar_chunks(
-                    workspace_id=workspace_id,
-                    user_id=user_id,
-                    query=message,
-                    limit=5,
+                relevant_chunks = (
+                    search_similar_chunks(
+                        workspace_id=workspace_id,
+                        user_id=user_id,
+                        query=message,
+                        limit=5,
+                    )
                 )
 
                 if relevant_chunks:
                     rag_lines = []
 
-                    for index, chunk in enumerate(
-                        relevant_chunks,
-                        start=1,
-                    ):
+                    for chunk in relevant_chunks:
                         content = str(
-                            chunk.get("content", "")
+                            chunk.get(
+                                "content",
+                                ""
+                            )
                         ).strip()
 
                         if not content:
@@ -345,8 +640,10 @@ def generate_ai_response(
                         )
 
                     if rag_lines:
-                        rag_context = "\n\n".join(
-                            rag_lines
+                        rag_context = (
+                            "\n\n".join(
+                                rag_lines
+                            )
                         )
 
                         contents.append(
@@ -359,10 +656,10 @@ def generate_ai_response(
                                             "retrieved for the current question:\n\n"
                                             + rag_context
                                             + "\n\n"
-                                            "Use this document context when "
-                                            "answering the user's question. "
-                                            "Do not invent information that "
-                                            "is not supported by this context."
+                                            "Use this document context when answering "
+                                            "the user's question. "
+                                            "Do not invent information "
+                                            "that is not supported by this context."
                                         )
                                     }
                                 ],
@@ -426,8 +723,10 @@ def generate_ai_response(
                 str(local_path)
             )
 
-            uploaded_gemini_file = client.files.upload(
-                file=str(local_path)
+            uploaded_gemini_file = (
+                client.files.upload(
+                    file=str(local_path)
+                )
             )
 
             print(
@@ -439,26 +738,51 @@ def generate_ai_response(
         # GENERATE AI RESPONSE
         # =====================================================
 
-        if uploaded_gemini_file:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=[
-                    *contents,
-                    uploaded_gemini_file,
-                ],
+        generation_config = (
+            GenerateContentConfig(
+                system_instruction=(
+                    personalized_system_instruction
+                )
             )
-        else:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=contents,
-            )
+        )
+
+        request_contents = (
+            [
+                *contents,
+                uploaded_gemini_file,
+            ]
+            if uploaded_gemini_file
+            else contents
+        )
 
         # =====================================================
-        # AI USAGE LOGGING
+        # LATENCY MEASUREMENT
         # =====================================================
 
-        # Usage logging is best-effort.
-        # It must never break the AI response.
+        start_time = time.perf_counter()
+
+        response = client.models.generate_content(
+            model=model_name,
+            contents=request_contents,
+            config=generation_config,
+        )
+
+        end_time = time.perf_counter()
+
+        latency_ms = round(
+            (end_time - start_time) * 1000,
+            2,
+        )
+
+        print(
+            "AI RESPONSE LATENCY:",
+            latency_ms,
+            "ms",
+        )
+
+        # =====================================================
+        # AI USAGE METADATA
+        # =====================================================
 
         usage_metadata = getattr(
             response,
@@ -489,18 +813,25 @@ def generate_ai_response(
             + output_tokens
         )
 
+        # =====================================================
+        # AI USAGE LOGGING
+        # =====================================================
+
         usage_connection = None
         usage_cursor = None
 
         try:
             usage_connection = get_connection()
-            usage_cursor = usage_connection.cursor()
+            usage_cursor = (
+                usage_connection.cursor()
+            )
 
             usage_sql = (
                 "INSERT INTO ai_usage_logs "
                 "(user_id, workspace_id, provider, model, "
-                "input_tokens, output_tokens, total_tokens, estimated_cost) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s);"
+                "input_tokens, output_tokens, total_tokens, "
+                "estimated_cost, latency_ms) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);"
             )
 
             usage_values = (
@@ -512,6 +843,7 @@ def generate_ai_response(
                 output_tokens,
                 total_tokens,
                 0,
+                latency_ms,
             )
 
             usage_cursor.execute(
@@ -546,19 +878,15 @@ def generate_ai_response(
                 except Exception:
                     pass
 
-        # =====================================================
-        # RETURN AI RESPONSE
-        # =====================================================
-
         return (
             response.text
             or "Nova returned an empty response."
         )
 
     except Exception as e:
-        print(
-            "AI RESPONSE ERROR:",
-            repr(e)
+        logger.exception(
+            "AI RESPONSE ERROR: %s",
+            repr(e),
         )
 
         return get_friendly_gemini_error(e)
