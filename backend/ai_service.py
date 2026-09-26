@@ -50,6 +50,8 @@ When relevant document context is provided:
 SUPPORTED_MODELS = {
     "gemini-3.6-flash",
     "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.5-flash-lite",
     "gemini-3.1-pro-preview",
 }
 
@@ -762,12 +764,19 @@ def generate_ai_response(
 
         start_time = time.perf_counter()
 
-        # Try the user-selected model first. If Gemini returns a temporary
-        # 503/high-demand error, automatically fall back to Gemini 3.8 Flash.
+        # Try the user-selected model first. On transient 503/high-demand
+        # failures, cascade through additional stable Flash models.
+        fallback_models = [
+            "gemini-3.8-flash",
+            "gemini-3.7-flash",
+            "gemini-3.5-flash-lite",
+        ]
+
         models_to_try = [model_name]
 
-        if model_name != "gemini-3.8-flash":
-            models_to_try.append("gemini-3.8-flash")
+        for fallback_model in fallback_models:
+            if fallback_model not in models_to_try:
+                models_to_try.append(fallback_model)
 
         response = None
         last_error = None
