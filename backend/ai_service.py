@@ -49,6 +49,7 @@ When relevant document context is provided:
 
 SUPPORTED_MODELS = {
     "gemini-3.6-flash",
+    "gemini-3.8-flash",
     "gemini-3.1-pro-preview",
 }
 
@@ -761,11 +762,72 @@ def generate_ai_response(
 
         start_time = time.perf_counter()
 
-        response = client.models.generate_content(
-            model=model_name,
-            contents=request_contents,
-            config=generation_config,
-        )
+        # Try the user-selected model first. If Gemini returns a temporary
+        # 503/high-demand error, automatically fall back to Gemini 3.8 Flash.
+        models_to_try = [model_name]
+
+        if model_name != "gemini-3.8-flash":
+            models_to_try.append("gemini-3.8-flash")
+
+        response = None
+        last_error = None
+
+        for current_model in models_to_try:
+            try:
+                logger.info(
+                    "GEMINI REQUEST: model=%s",
+                    current_model,
+                )
+
+                response = client.models.generate_content(
+                    model=current_model,
+                    contents=request_contents,
+                    config=generation_config,
+                )
+
+                model_name = current_model
+
+                logger.info(
+                    "GEMINI RESPONSE SUCCESS: model=%s",
+                    current_model,
+                )
+
+                break
+
+            except Exception as generation_error:
+                last_error = generation_error
+
+                error_text = str(
+                    generation_error
+                ).lower()
+
+                is_transient_error = (
+                    "503" in error_text
+                    or "service unavailable" in error_text
+                    or "high demand" in error_text
+                    or "currently experiencing high demand"
+                    in error_text
+                )
+
+                if not is_transient_error:
+                    raise
+
+                logger.warning(
+                    "GEMINI MODEL FAILED: model=%s error=%r",
+                    current_model,
+                    generation_error,
+                )
+
+                # Continue to the fallback model.
+                continue
+
+        if response is None:
+            if last_error is not None:
+                raise last_error
+
+            raise RuntimeError(
+                "Gemini returned no response."
+            )
 
         end_time = time.perf_counter()
 
