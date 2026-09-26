@@ -207,8 +207,8 @@ def test_retrieval_scopes_query_to_authenticated_user(monkeypatch):
     params = connection.cursor_instance.executed_params
 
     assert "dc.user_id = %s" in sql
-    assert "f.user_id = %s" in sql
-    assert params == (20, 30, 30)
+    assert "f.user_id" not in sql
+    assert params == (20, 30)
     assert results[0]["user_id"] == 30
 
 

@@ -357,22 +357,6 @@ def retrieve_relevant_chunks(
     try:
         cursor = connection.cursor()
 
-        user_filter_sql = ""
-        query_params = [workspace_id]
-
-        if user_id is not None:
-            user_filter_sql = """
-              AND (
-                  dc.user_id = %s
-                  OR (
-                      dc.user_id IS NULL
-                      AND f.user_id = %s
-                  )
-              )
-            """
-            query_params.extend([user_id, user_id])
-
-        # -------------------------------------------------
         # Detect current database schema
         # -------------------------------------------------
 
@@ -391,6 +375,25 @@ def retrieve_relevant_chunks(
             "file_id"
             in chunk_columns
         )
+
+
+        # -------------------------------------------------
+        # Production-safe tenant filtering
+        # -------------------------------------------------
+        # The production document_chunks table does not
+        # guarantee a file_id column. DQA therefore uses
+        # the authenticated user's chunk ownership directly.
+        query_params = [workspace_id]
+
+        if user_id is not None:
+            user_filter_sql = """
+              AND dc.user_id = %s
+            """
+            query_params.append(
+                user_id
+            )
+        else:
+            user_filter_sql = ""
 
         has_page = (
             "page"
@@ -449,7 +452,7 @@ def retrieve_relevant_chunks(
                     dc.embedding,
                     COALESCE(
                         d.title,
-                        f.filename,
+                        'unknown',
                         'unknown'
                     ) AS title,
                     {select_file_id},
@@ -457,8 +460,6 @@ def retrieve_relevant_chunks(
                 FROM document_chunks dc
                 LEFT JOIN documents d
                     ON dc.document_id = d.id
-                LEFT JOIN files f
-                    ON dc.file_id = f.id
                 WHERE dc.workspace_id = %s{user_filter_sql}
                   AND dc.embedding IS NOT NULL
                 ORDER BY dc.id ASC;
@@ -509,7 +510,7 @@ def retrieve_relevant_chunks(
                     dce.embedding,
                     COALESCE(
                         d.title,
-                        f.filename,
+                        'unknown',
                         'unknown'
                     ) AS title,
                     {select_file_id},
@@ -519,8 +520,6 @@ def retrieve_relevant_chunks(
                     ON dc.id = dce.chunk_id
                 LEFT JOIN documents d
                     ON dc.document_id = d.id
-                LEFT JOIN files f
-                    ON dc.file_id = f.id
                 WHERE dc.workspace_id = %s{user_filter_sql}
                 ORDER BY dc.id ASC;
                 """,
