@@ -319,6 +319,7 @@ def retrieve_relevant_chunks(
     query: str,
     top_k: int = 5,
     workspace_id: int | None = None,
+    user_id: int | None = None,
 ):
     query = query.strip()
 
@@ -327,6 +328,16 @@ def retrieve_relevant_chunks(
 
     if workspace_id is None:
         return []
+
+    if user_id is not None and user_id <= 0:
+        return []
+
+    try:
+        top_k = int(top_k)
+    except (TypeError, ValueError):
+        top_k = 5
+
+    top_k = max(1, min(top_k, 10))
 
     query_embedding = generate_embedding(
         query
@@ -345,6 +356,21 @@ def retrieve_relevant_chunks(
 
     try:
         cursor = connection.cursor()
+
+        user_filter_sql = ""
+        query_params = [workspace_id]
+
+        if user_id is not None:
+            user_filter_sql = """
+              AND (
+                  dc.user_id = %s
+                  OR (
+                      dc.user_id IS NULL
+                      AND f.user_id = %s
+                  )
+              )
+            """
+            query_params.extend([user_id, user_id])
 
         # -------------------------------------------------
         # Detect current database schema
@@ -433,13 +459,11 @@ def retrieve_relevant_chunks(
                     ON dc.document_id = d.id
                 LEFT JOIN files f
                     ON dc.file_id = f.id
-                WHERE dc.workspace_id = %s
+                WHERE dc.workspace_id = %s{user_filter_sql}
                   AND dc.embedding IS NOT NULL
                 ORDER BY dc.id ASC;
                 """,
-                (
-                    workspace_id,
-                ),
+                tuple(query_params),
             )
 
             rows = cursor.fetchall()
@@ -497,12 +521,10 @@ def retrieve_relevant_chunks(
                     ON dc.document_id = d.id
                 LEFT JOIN files f
                     ON dc.file_id = f.id
-                WHERE dc.workspace_id = %s
+                WHERE dc.workspace_id = %s{user_filter_sql}
                 ORDER BY dc.id ASC;
                 """,
-                (
-                    workspace_id,
-                ),
+                tuple(query_params),
             )
 
             rows = cursor.fetchall()
@@ -548,15 +570,18 @@ def retrieve_relevant_chunks(
 
             row_workspace_id = row[2]
 
-            user_id = row[3]
+            row_user_id = row[3]
 
             chunk_index = row[4]
 
-            content = row[5]
+            content = str(row[5] or "").strip()
+
+            if not content:
+                continue
 
             stored_embedding = row[6]
 
-            filename = row[7] or "unknown"
+            filename = str(row[7] or "unknown").strip() or "unknown"
 
             row_file_id = row[8]
 
@@ -623,7 +648,7 @@ def retrieve_relevant_chunks(
                     "workspace_id": (
                         row_workspace_id
                     ),
-                    "user_id": user_id,
+                    "user_id": row_user_id,
                     "filename": filename,
                     "logical_filename": (
                         normalize_filename(

@@ -610,6 +610,7 @@ def ask_document_endpoint(
     return ask_document(
         question=question,
         workspace_id=workspace_id,
+        user_id=current_user["user_id"],
         top_k=top_k,
     )
 
