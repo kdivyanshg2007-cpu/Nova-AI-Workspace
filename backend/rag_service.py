@@ -405,7 +405,7 @@ def search_similar_chunks(
 
     Document/chunk data are read from:
         document_chunks
-        files
+        documents
 
     Similarity is calculated in Python using cosine similarity.
     """
@@ -503,23 +503,27 @@ def search_similar_chunks(
             SELECT
                 dc.id,
                 dc.document_id,
-                dc.file_id,
                 dc.workspace_id,
+                dc.user_id,
                 dc.chunk_index,
-                dc.page,
+                NULL::integer AS page,
                 dc.content,
                 dce.embedding,
-                f.filename
+                d.title
             FROM document_chunks dc
             INNER JOIN document_chunk_embeddings dce
                 ON dc.id = dce.chunk_id
-            INNER JOIN files f
-                ON dc.file_id = f.id
+            INNER JOIN documents d
+                ON dc.document_id = d.id
             WHERE dc.workspace_id = %s
-              AND f.user_id = %s
+              AND dc.user_id = %s
+              AND d.workspace_id = %s
+              AND d.user_id = %s
               AND dce.embedding IS NOT NULL
             """,
             (
+                workspace_id,
+                user_id,
                 workspace_id,
                 user_id,
             ),
@@ -545,13 +549,17 @@ def search_similar_chunks(
 
             chunk_id = row[0]
             document_id = row[1]
-            file_id = row[2]
-            stored_workspace_id = row[3]
+            stored_workspace_id = row[2]
+            stored_user_id = row[3]
             chunk_index = row[4]
             page = row[5]
             content = row[6]
             stored_embedding = row[7]
             filename = row[8]
+
+            # Production document_chunks has no file_id column.
+            # Keep this response key for backward compatibility.
+            file_id = None
 
             if not stored_embedding:
                 continue
