@@ -1,5 +1,3 @@
-from typing import Any
-
 from google import genai
 
 from settings import settings
@@ -40,12 +38,81 @@ class CodingAgent:
         task: str,
         code: str = "",
         language: str = "",
+        operation: str = "generate",
     ) -> str:
+        operation = (
+            operation.strip().lower()
+            if operation
+            else "generate"
+        )
+
+        operation_instruction = {
+            "generate": """
+Generate a complete, working solution for the requested task.
+Provide the code clearly and explain important parts briefly.
+""",
+            "explain": """
+Explain the EXISTING CODE that was provided.
+Do not generate a new program unless a small corrected snippet
+is necessary to clarify the explanation.
+
+Explain:
+- what the code does
+- how the logic works
+- important variables/functions
+- step-by-step flow
+- time complexity
+- space complexity
+
+Keep the explanation focused on the provided code.
+""",
+            "debug": """
+Debug the EXISTING CODE that was provided.
+
+You must:
+- identify the actual bug(s)
+- explain why each bug occurs
+- provide the corrected version of the code
+- clearly mention what was changed
+- keep the original goal of the program
+- do not unnecessarily rewrite unrelated parts
+""",
+            "optimize": """
+Optimize the EXISTING CODE that was provided.
+
+You must:
+- identify important inefficiencies
+- explain what can be improved
+- provide an optimized version where useful
+- preserve the intended functionality
+- provide time and space complexity before and after optimization
+""",
+            "test_cases": """
+Create meaningful test cases for the EXISTING CODE and its intended behavior.
+
+Include:
+- normal cases
+- edge cases
+- boundary cases where relevant
+- expected outputs
+
+Do not unnecessarily rewrite the complete program.
+""",
+        }
+
+        selected_instruction = operation_instruction.get(
+            operation,
+            operation_instruction["generate"],
+        )
+
         return f"""
 You are Nova AI Coding Agent.
 
 Task:
 {task}
+
+Operation:
+{operation}
 
 Programming Language:
 {language or "Not specified"}
@@ -53,14 +120,21 @@ Programming Language:
 Existing Code:
 {code or "No existing code provided"}
 
-Instructions:
+Operation Instructions:
+{selected_instruction}
+
+General Instructions:
 - Give a clear and useful answer.
-- For code generation, provide working code.
-- For debugging, identify the problem and provide the corrected code.
-- For explanation, explain the code simply.
-- For optimization, suggest improvements and provide optimized code where useful.
-- For test cases, provide meaningful test cases.
-- Do not expose secrets or API keys.
+- Respect the requested programming language.
+- Use the existing code when the operation is explain, debug,
+  optimize, or test_cases.
+- For debugging, identify real problems instead of inventing bugs.
+- For explanation, explain the provided code rather than generating
+  a replacement program.
+- For optimization, preserve the original behavior.
+- For test cases, give practical and meaningful inputs and outputs.
+- Do not expose secrets, API keys, passwords, tokens, or private data.
+- Use clear formatting.
 """
 
     def run(
@@ -74,6 +148,12 @@ Instructions:
     ):
         task = task.strip()
 
+        operation = (
+            operation.strip().lower()
+            if operation
+            else "generate"
+        )
+
         state = AgentState(
             user_id=user_id,
             workspace_id=workspace_id,
@@ -81,7 +161,7 @@ Instructions:
             agent_name="coding",
         )
 
-        if not task:
+        if not task and not code.strip():
             error_message = (
                 "Coding task cannot be empty."
             )
@@ -130,12 +210,104 @@ Instructions:
                 task=task,
                 code=code,
                 language=language,
+                operation=operation,
             )
 
-            response = self.client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=prompt,
-            )
+            # -------------------------------------------------
+            # GEMINI REQUEST WITH FALLBACK
+            # -------------------------------------------------
+
+            fallback_models = [
+                settings.GEMINI_MODEL,
+                "gemini-3.8-flash",
+                "gemini-3.7-flash",
+                "gemini-3.5-flash-lite",
+            ]
+
+            models_to_try = []
+
+            for model_name in fallback_models:
+                if (
+                    model_name
+                    and model_name not in models_to_try
+                ):
+                    models_to_try.append(
+                        model_name
+                    )
+
+            response = None
+            last_error = None
+
+            for current_model in models_to_try:
+                try:
+                    self.logger.log(
+                        "coding_model_attempt",
+                        "coding",
+                        {
+                            "model": current_model,
+                            "operation": operation,
+                        },
+                    )
+
+                    response = (
+                        self.client.models.generate_content(
+                            model=current_model,
+                            contents=prompt,
+                        )
+                    )
+
+                    self.logger.log(
+                        "coding_model_success",
+                        "coding",
+                        {
+                            "model": current_model,
+                            "operation": operation,
+                        },
+                    )
+
+                    break
+
+                except Exception as generation_error:
+                    last_error = generation_error
+
+                    error_text = str(
+                        generation_error
+                    ).lower()
+
+                    is_transient_error = (
+                        "503" in error_text
+                        or "service unavailable"
+                        in error_text
+                        or "high demand"
+                        in error_text
+                        or "currently experiencing high demand"
+                        in error_text
+                    )
+
+                    if not is_transient_error:
+                        raise
+
+                    self.logger.log(
+                        "coding_model_failed",
+                        "coding",
+                        {
+                            "model": current_model,
+                            "error": str(
+                                generation_error
+                            ),
+                            "operation": operation,
+                        },
+                    )
+
+                    continue
+
+            if response is None:
+                if last_error is not None:
+                    raise last_error
+
+                raise RuntimeError(
+                    "Gemini returned no response."
+                )
 
             answer = (
                 response.text or ""
