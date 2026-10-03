@@ -11,6 +11,7 @@ import DataAnalysis from "./pages/DataAnalysis";
 import Notes from "./pages/Notes";
 import Files from "./pages/Files";
 import Tasks from "./pages/Tasks";
+import ContentGeneration from "./pages/ContentGeneration";
 
 import Workspace from "../Workspace.jsx";
 import CodingWorkspace from "./components/CodingWorkspace";
@@ -29,6 +30,7 @@ function App() {
     if (path === "/notes") return "notes";
     if (path === "/files") return "files";
     if (path === "/tasks") return "tasks";
+    if (path === "/content-generation") return "content-generation";
 
     if (path.startsWith("/shared/")) {
       return "shared-research";
@@ -183,6 +185,15 @@ function App() {
     window.history.pushState({}, "", "/tasks");
   };
 
+  const handleOpenContentGeneration = () => {
+    setPage("content-generation");
+    window.history.pushState(
+      {},
+      "",
+      "/content-generation"
+    );
+  };
+
   // --------------------------------------------------
   // SHARED RESEARCH
   // --------------------------------------------------
@@ -253,6 +264,9 @@ function App() {
           onOpenNotes={handleOpenNotes}
           onOpenFiles={handleOpenFiles}
           onOpenTasks={handleOpenTasks}
+          onOpenContentGeneration={
+            handleOpenContentGeneration
+          }
         />
       </div>
     );
@@ -311,6 +325,21 @@ function App() {
     return (
       <div className="nova-route nova-route-app">
         <Tasks
+          workspace={selectedWorkspace}
+          onBack={handleBackToWorkspace}
+        />
+      </div>
+    );
+  }
+
+  // --------------------------------------------------
+  // CONTENT GENERATION
+  // --------------------------------------------------
+
+  if (page === "content-generation") {
+    return (
+      <div className="nova-route nova-route-app">
+        <ContentGeneration
           workspace={selectedWorkspace}
           onBack={handleBackToWorkspace}
         />

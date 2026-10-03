@@ -9,6 +9,7 @@ export default function Workspace({
   onOpenNotes,
   onOpenFiles,
   onOpenTasks,
+  onOpenContentGeneration,
 }) {
   return (
     <div className="min-h-screen bg-gray-100">
@@ -160,6 +161,21 @@ export default function Workspace({
 
               <p className="text-sm text-gray-500 mt-2">
                 Manage tasks, priorities and deadlines
+              </p>
+            </button>
+
+            {/* Content Generation */}
+            <button
+              type="button"
+              onClick={onOpenContentGeneration}
+              className="border rounded-xl p-5 text-left hover:bg-gray-50 transition cursor-pointer"
+            >
+              <h3 className="font-semibold">
+                ✍️ Content Generation
+              </h3>
+
+              <p className="text-sm text-gray-500 mt-2">
+                Create emails, reports, resumes, notes and more
               </p>
             </button>
           </div>

@@ -1,4 +1,4 @@
-from typing import Any
+﻿from typing import Any
 
 from pathlib import Path
 
@@ -76,6 +76,8 @@ from search_routes import router as search_router
 
 from agents.research_pdf_export import ResearchPDFExportService
 from agents.file_export import FileExportService
+from content_generation import generate_content
+from content_file_export import get_content_file_export_service
 
 from preferences_routes import router as preferences_router
 from evaluation_routes import router as evaluation_router
@@ -115,6 +117,27 @@ class CodingRequest(BaseModel):
     code: str = ""
     language: str = "python"
     operation: str = "generate"
+
+
+class ContentFileExportRequest(BaseModel):
+    workspace_id: int
+    content_type: str
+    content: str
+    filename: str | None = None
+
+
+class ContentOutputSaveRequest(BaseModel):
+    workspace_id: int
+    content_type: str
+    content: str
+    file_format: str
+    filename: str | None = None
+
+
+class ContentGenerationRequest(BaseModel):
+    workspace_id: int
+    content_type: str
+    prompt: str
 
 
 class CodingResponse(BaseModel):
@@ -488,7 +511,7 @@ def search_workspace_documents(
 
 
 # =========================================================
-# RAG — VECTOR SEARCH
+# RAG â€” VECTOR SEARCH
 # =========================================================
 
 @app.get(
@@ -581,7 +604,7 @@ def delete_existing_document(
 
 
 # =========================================================
-# DAY 14 — ASK YOUR DOCUMENT
+# DAY 14 â€” ASK YOUR DOCUMENT
 # =========================================================
 
 @app.post(
@@ -2150,7 +2173,7 @@ def process_uploaded_document(
 
 
 # =========================================================
-# DAY 31 — RESEARCH PDF EXPORT
+# DAY 31 â€” RESEARCH PDF EXPORT
 # =========================================================
 
 @app.post(
@@ -2204,7 +2227,7 @@ def export_research_pdf(
 
 
 # =========================================================
-# DAY 32 — FILE EXPORT
+# DAY 32 â€” FILE EXPORT
 # =========================================================
 
 @app.post(
@@ -2367,8 +2390,588 @@ def export_research_xlsx(
 
 
 # =========================================================
-# DAY 25 — AI CODING WORKSPACE
+# DAY 25 â€” AI CODING WORKSPACE
 # =========================================================
+
+# =========================================================
+# DAY 31 ? AI CONTENT GENERATION
+# =========================================================
+
+@app.post(
+    "/api/v1/content/generate"
+)
+def generate_content_endpoint(
+    request: ContentGenerationRequest,
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    """
+    Generate structured content using Nova AI.
+    """
+
+    workspace_id = request.workspace_id
+    content_type = request.content_type.strip().lower()
+    prompt = request.prompt.strip()
+
+    if workspace_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid workspace_id.",
+        }
+
+    user_id = current_user["user_id"]
+
+    if not verify_workspace_ownership(
+        workspace_id=workspace_id,
+        user_id=user_id,
+    ):
+        return {
+            "success": False,
+            "message": (
+                "Workspace not found or "
+                "access denied."
+            ),
+        }
+
+    if not prompt:
+        return {
+            "success": False,
+            "message": "Please provide a prompt.",
+        }
+
+    try:
+        content = generate_content(
+            content_type=content_type,
+            prompt=prompt,
+            user_id=user_id,
+            workspace_id=workspace_id,
+        )
+
+        return {
+            "success": True,
+            "content": content,
+            "content_type": content_type,
+            "workspace_id": workspace_id,
+        }
+
+    except ValueError as error:
+        return {
+            "success": False,
+            "message": str(error),
+        }
+
+    except Exception as error:
+        print(
+            "CONTENT GENERATION ERROR:",
+            repr(error),
+        )
+
+        return {
+            "success": False,
+            "message": (
+                f"Content generation failed: "
+                f"{str(error)}"
+            ),
+        }
+
+
+# =========================================================
+# DAY 32 ? AI CONTENT FILE EXPORT
+# =========================================================
+
+# =========================================================
+# DAY 32 ? AI CONTENT PPTX EXPORT
+# =========================================================
+
+@app.post(
+    "/api/v1/content/export-pptx"
+)
+def export_content_pptx(
+    request: ContentFileExportRequest,
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    """
+    Generate and download AI-generated content as PPTX.
+    """
+
+    workspace_id = request.workspace_id
+    user_id = current_user["user_id"]
+
+    if workspace_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid workspace_id.",
+        }
+
+    if not verify_workspace_ownership(
+        workspace_id=workspace_id,
+        user_id=user_id,
+    ):
+        return {
+            "success": False,
+            "message": (
+                "Workspace not found or "
+                "access denied."
+            ),
+        }
+
+    content = request.content.strip()
+
+    if not content:
+        return {
+            "success": False,
+            "message": "Content cannot be empty.",
+        }
+
+    try:
+        export_service = (
+            get_content_file_export_service()
+        )
+
+        file_path = export_service.export_pptx(
+            content=content,
+            content_type=request.content_type,
+            filename=request.filename,
+        )
+
+        return FileResponse(
+            path=file_path,
+            media_type=(
+                "application/vnd.openxmlformats-officedocument."
+                "presentationml.presentation"
+            ),
+            filename=Path(file_path).name,
+        )
+
+    except Exception as error:
+        print(
+            "CONTENT PPTX EXPORT ERROR:",
+            repr(error),
+        )
+
+        return {
+            "success": False,
+            "message": (
+                f"Content PPTX export failed: "
+                f"{str(error)}"
+            ),
+        }
+
+
+@app.post(
+    "/api/v1/content/export-docx"
+)
+def export_content_docx(
+    request: ContentFileExportRequest,
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    """
+    Generate and download AI-generated content as DOCX.
+    """
+
+    workspace_id = request.workspace_id
+    user_id = current_user["user_id"]
+
+    if workspace_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid workspace_id.",
+        }
+
+    if not verify_workspace_ownership(
+        workspace_id=workspace_id,
+        user_id=user_id,
+    ):
+        return {
+            "success": False,
+            "message": (
+                "Workspace not found or "
+                "access denied."
+            ),
+        }
+
+    content = request.content.strip()
+
+    if not content:
+        return {
+            "success": False,
+            "message": "Content cannot be empty.",
+        }
+
+    try:
+        export_service = (
+            get_content_file_export_service()
+        )
+
+        file_path = export_service.export_docx(
+            content=content,
+            content_type=request.content_type,
+            filename=request.filename,
+        )
+
+        return FileResponse(
+            path=file_path,
+            media_type=(
+                "application/vnd.openxmlformats-"
+                "officedocument.wordprocessingml.document"
+            ),
+            filename=Path(file_path).name,
+        )
+
+    except Exception as error:
+        print(
+            "CONTENT DOCX EXPORT ERROR:",
+            repr(error),
+        )
+
+        return {
+            "success": False,
+            "message": (
+                f"Content DOCX export failed: "
+                f"{str(error)}"
+            ),
+        }
+
+
+@app.post(
+    "/api/v1/content/export-xlsx"
+)
+def export_content_xlsx(
+    request: ContentFileExportRequest,
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    """
+    Generate and download AI-generated content as XLSX.
+    """
+
+    workspace_id = request.workspace_id
+    user_id = current_user["user_id"]
+
+    if workspace_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid workspace_id.",
+        }
+
+    if not verify_workspace_ownership(
+        workspace_id=workspace_id,
+        user_id=user_id,
+    ):
+        return {
+            "success": False,
+            "message": (
+                "Workspace not found or "
+                "access denied."
+            ),
+        }
+
+    content = request.content.strip()
+
+    if not content:
+        return {
+            "success": False,
+            "message": "Content cannot be empty.",
+        }
+
+    try:
+        export_service = (
+            get_content_file_export_service()
+        )
+
+        file_path = export_service.export_xlsx(
+            content=content,
+            content_type=request.content_type,
+            filename=request.filename,
+        )
+
+        return FileResponse(
+            path=file_path,
+            media_type=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            ),
+            filename=Path(file_path).name,
+        )
+
+    except Exception as error:
+        print(
+            "CONTENT XLSX EXPORT ERROR:",
+            repr(error),
+        )
+
+        return {
+            "success": False,
+            "message": (
+                f"Content XLSX export failed: "
+                f"{str(error)}"
+            ),
+        }
+
+# =========================================================
+# DAY 33 ? SAVE CONTENT OUTPUT
+# =========================================================
+
+@app.post(
+    "/api/v1/content/save-output"
+)
+def save_content_output(
+    request: ContentOutputSaveRequest,
+    current_user: dict = Depends(
+        get_current_user
+    ),
+):
+    """
+    Generate a content file, save it permanently,
+    and register it inside the workspace output library.
+    """
+
+    workspace_id = request.workspace_id
+    user_id = current_user["user_id"]
+
+    content_type = (
+        request.content_type.strip().lower()
+    )
+
+    file_format = (
+        request.file_format.strip().lower().lstrip(".")
+    )
+
+    content = request.content.strip()
+
+    if workspace_id <= 0:
+        return {
+            "success": False,
+            "message": "Invalid workspace_id.",
+        }
+
+    if not verify_workspace_ownership(
+        workspace_id=workspace_id,
+        user_id=user_id,
+    ):
+        return {
+            "success": False,
+            "message": (
+                "Workspace not found or "
+                "access denied."
+            ),
+        }
+
+    if not content:
+        return {
+            "success": False,
+            "message": "Content cannot be empty.",
+        }
+
+    allowed_formats = {
+        "docx",
+        "pptx",
+        "xlsx",
+    }
+
+    if file_format not in allowed_formats:
+        return {
+            "success": False,
+            "message": (
+                "Supported output formats are "
+                "DOCX, PPTX and XLSX."
+            ),
+        }
+
+    filename = (
+        Path(request.filename).name
+        if request.filename
+        else f"nova_{content_type}.{file_format}"
+    )
+
+    filename_stem = Path(filename).stem
+
+    if not filename_stem:
+        filename_stem = (
+            f"nova_{content_type}"
+        )
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT COALESCE(
+                MAX(version),
+                0
+            )
+            FROM content_outputs
+            WHERE user_id = %s
+              AND workspace_id = %s
+              AND content_type = %s;
+            """,
+            (
+                user_id,
+                workspace_id,
+                content_type,
+            ),
+        )
+
+        latest_version = cursor.fetchone()[0] or 0
+        next_version = latest_version + 1
+
+        final_filename = (
+            f"{filename_stem}_v{next_version}."
+            f"{file_format}"
+        )
+
+        export_service = (
+            get_content_file_export_service()
+        )
+
+        if file_format == "docx":
+            file_path = (
+                export_service.export_docx(
+                    content=content,
+                    content_type=content_type,
+                    filename=final_filename,
+                )
+            )
+
+            mime_type = (
+                "application/vnd.openxmlformats-officedocument."
+                "wordprocessingml.document"
+            )
+
+        elif file_format == "pptx":
+            file_path = (
+                export_service.export_pptx(
+                    content=content,
+                    content_type=content_type,
+                    filename=final_filename,
+                )
+            )
+
+            mime_type = (
+                "application/vnd.openxmlformats-officedocument."
+                "presentationml.presentation"
+            )
+
+        else:
+            file_path = (
+                export_service.export_xlsx(
+                    content=content,
+                    content_type=content_type,
+                    filename=final_filename,
+                )
+            )
+
+            mime_type = (
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            )
+
+        stored_path = Path(
+            file_path
+        ).resolve()
+
+        if not stored_path.exists():
+            raise FileNotFoundError(
+                "Generated output file was not created."
+            )
+
+        file_size = stored_path.stat().st_size
+
+        cursor.execute(
+            """
+            INSERT INTO content_outputs (
+                user_id,
+                workspace_id,
+                content_type,
+                filename,
+                file_path,
+                mime_type,
+                file_size,
+                version
+            )
+            VALUES (
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s
+            )
+            RETURNING
+                id,
+                created_at;
+            """,
+            (
+                user_id,
+                workspace_id,
+                content_type,
+                final_filename,
+                str(stored_path),
+                mime_type,
+                file_size,
+                next_version,
+            ),
+        )
+
+        output_row = cursor.fetchone()
+        connection.commit()
+
+        return {
+            "success": True,
+            "message": (
+                "Output saved to workspace successfully."
+            ),
+            "output": {
+                "id": output_row[0],
+                "workspace_id": workspace_id,
+                "content_type": content_type,
+                "filename": final_filename,
+                "file_format": file_format,
+                "version": next_version,
+                "file_size": file_size,
+                "created_at": output_row[1],
+            },
+        }
+
+    except Exception as error:
+        if connection is not None:
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+
+        print(
+            "CONTENT OUTPUT SAVE ERROR:",
+            repr(error),
+        )
+
+        return {
+            "success": False,
+            "message": (
+                f"Content output save failed: "
+                f"{str(error)}"
+            ),
+        }
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None:
+            connection.close()
+
 
 @app.post(
     "/api/v1/coding/run",
