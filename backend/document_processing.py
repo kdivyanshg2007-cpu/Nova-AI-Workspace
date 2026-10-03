@@ -5,6 +5,7 @@ import pymupdf
 from docx import Document
 
 from database import get_connection
+from embedding_storage import save_embeddings_for_chunks
 
 
 # =========================================================
@@ -373,6 +374,53 @@ def save_chunks_to_database(
         connection.close()
 
 
+def embed_saved_chunks_for_file(
+    file_id: int,
+) -> int:
+    """
+    Generate RETRIEVAL_DOCUMENT embeddings for the chunks
+    belonging to one uploaded file.
+    """
+
+    if file_id <= 0:
+        return 0
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            """
+            SELECT
+                dc.id,
+                dc.content
+            FROM document_chunks dc
+            WHERE dc.file_id = %s
+            ORDER BY dc.chunk_index ASC, dc.id ASC;
+            """,
+            (file_id,),
+        )
+
+        rows = cursor.fetchall()
+
+        chunks_for_embedding = [
+            {
+                "id": row[0],
+                "content": row[1],
+            }
+            for row in rows
+            if row[1] and str(row[1]).strip()
+        ]
+
+    finally:
+        cursor.close()
+        connection.close()
+
+    return save_embeddings_for_chunks(
+        chunks_for_embedding
+    )
+
+
 # =========================================================
 # FULL DOCUMENT PROCESSING
 # =========================================================
@@ -405,12 +453,17 @@ def process_document(
 
     # Save chunks to PostgreSQL.
     saved_chunk_count = 0
+    embedded_chunk_count = 0
 
     if file_id is not None:
         saved_chunk_count = save_chunks_to_database(
             file_id=file_id,
             workspace_id=workspace_id,
             chunks=chunks
+        )
+
+        embedded_chunk_count = embed_saved_chunks_for_file(
+            file_id=file_id
         )
 
     return {
@@ -424,5 +477,6 @@ def process_document(
         "page_count": len(pages),
         "chunk_count": len(chunks),
         "saved_chunk_count": saved_chunk_count,
+        "embedded_chunk_count": embedded_chunk_count,
         "success": True
     }
