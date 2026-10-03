@@ -406,6 +406,26 @@ def retrieve_relevant_chunks(
             )
         )
 
+        # Some production schemas retain a legacy embedding column on
+        # document_chunks while the actual embeddings are stored in the
+        # separate document_chunk_embeddings table. Column existence alone
+        # must not select DIRECT_VECTOR mode.
+        has_separate_embedding_data = False
+        if has_embedding_table:
+            cursor.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM document_chunk_embeddings
+                    WHERE embedding IS NOT NULL
+                    LIMIT 1
+                );
+                """
+            )
+            has_separate_embedding_data = bool(
+                cursor.fetchone()[0]
+            )
+
         print(
             "DOCUMENT CHUNK COLUMNS:",
             sorted(chunk_columns),
@@ -426,7 +446,7 @@ def retrieve_relevant_chunks(
         # Direct embedding inside document_chunks
         # -------------------------------------------------
 
-        if has_direct_embedding:
+        if has_direct_embedding and not has_separate_embedding_data:
 
             select_file_id = (
                 "dc.file_id"

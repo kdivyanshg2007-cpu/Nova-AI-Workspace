@@ -5,7 +5,7 @@ import pymupdf
 from docx import Document
 
 from database import get_connection
-from embedding_storage import save_embeddings_for_chunks
+from rag_service import embed_document_chunks
 
 
 # =========================================================
@@ -280,110 +280,18 @@ def save_chunks_to_database(
     file_id: int,
     workspace_id: int | None,
     chunks: list[dict]
-) -> int:
+) -> dict:
     """
-    Save processed chunks into document_chunks table.
-    """
+    Save processed chunks using the production document schema.
 
-    if file_id <= 0:
-        raise ValueError(
-            "Invalid file_id."
-        )
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    inserted_count = 0
-
-    try:
-
-        # Delete previous chunks for this file.
-        cursor.execute(
-            """
-            DELETE FROM document_chunks
-            WHERE file_id = %s;
-            """,
-            (file_id,)
-        )
-
-        for chunk in chunks:
-
-            content = (
-                chunk.get("text", "")
-                .strip()
-            )
-
-            if not content:
-                continue
-
-            cursor.execute(
-                """
-                INSERT INTO document_chunks (
-                    file_id,
-                    workspace_id,
-                    page,
-                    chunk_index,
-                    content
-                )
-                VALUES (
-                    %s,
-                    %s,
-                    %s,
-                    %s,
-                    %s
-                );
-                """,
-                (
-                    file_id,
-                    workspace_id,
-                    chunk.get("page"),
-                    chunk.get(
-                        "chunk_index",
-                        inserted_count
-                    ),
-                    content,
-                )
-            )
-
-            inserted_count += 1
-
-        # Ensure every processed chunk inherits the
-        # authenticated file owner's user_id.
-        cursor.execute(
-            """
-            UPDATE document_chunks dc
-            SET user_id = f.user_id
-            FROM files f
-            WHERE dc.file_id = f.id
-              AND dc.file_id = %s
-              AND dc.user_id IS NULL;
-            """,
-            (file_id,),
-        )
-
-        connection.commit()
-
-        return inserted_count
-
-    except Exception:
-        connection.rollback()
-        raise
-
-    finally:
-        cursor.close()
-        connection.close()
-
-
-def embed_saved_chunks_for_file(
-    file_id: int,
-) -> int:
-    """
-    Generate RETRIEVAL_DOCUMENT embeddings for the chunks
-    belonging to one uploaded file.
+    ``document_chunks`` is linked to ``documents`` through ``document_id``.
+    It does not use a ``file_id`` column. The uploaded file remains the
+    attachment record in ``files`` while its extracted text is represented
+    by a document + RAG chunks.
     """
 
     if file_id <= 0:
-        return 0
+        raise ValueError("Invalid file_id.")
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -392,33 +300,181 @@ def embed_saved_chunks_for_file(
         cursor.execute(
             """
             SELECT
-                dc.id,
-                dc.content
-            FROM document_chunks dc
-            WHERE dc.file_id = %s
-            ORDER BY dc.chunk_index ASC, dc.id ASC;
+                user_id,
+                workspace_id,
+                filename
+            FROM files
+            WHERE id = %s;
             """,
             (file_id,),
         )
 
-        rows = cursor.fetchall()
+        file_record = cursor.fetchone()
 
-        chunks_for_embedding = [
-            {
-                "id": row[0],
-                "content": row[1],
-            }
-            for row in rows
-            if row[1] and str(row[1]).strip()
-        ]
+        if file_record is None:
+            raise ValueError("Uploaded file record was not found.")
+
+        user_id = int(file_record[0])
+        actual_workspace_id = (
+            int(file_record[1])
+            if file_record[1] is not None
+            else workspace_id
+        )
+        filename = str(
+            file_record[2] or f"document-{file_id}"
+        ).strip()
+
+        if actual_workspace_id is None or int(actual_workspace_id) <= 0:
+            raise ValueError("Uploaded file has no valid workspace.")
+
+        actual_workspace_id = int(actual_workspace_id)
+
+        # Reconstruct the extracted document text from its chunks.
+        full_text = "\n\n".join(
+            str(chunk.get("text") or "").strip()
+            for chunk in chunks
+            if isinstance(chunk, dict)
+            and str(chunk.get("text") or "").strip()
+        ).strip()
+
+        if not full_text:
+            raise ValueError("No document text was extracted.")
+
+        # Reuse the latest same-name document for this tenant so repeated
+        # processing does not create unbounded duplicate document records.
+        cursor.execute(
+            """
+            SELECT id
+            FROM documents
+            WHERE workspace_id = %s
+              AND user_id = %s
+              AND title = %s
+            ORDER BY id DESC
+            LIMIT 1;
+            """,
+            (
+                actual_workspace_id,
+                user_id,
+                filename,
+            ),
+        )
+
+        existing = cursor.fetchone()
+
+        if existing:
+            document_id = int(existing[0])
+
+            cursor.execute(
+                """
+                UPDATE documents
+                SET content = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                  AND workspace_id = %s
+                  AND user_id = %s;
+                """,
+                (
+                    full_text,
+                    document_id,
+                    actual_workspace_id,
+                    user_id,
+                ),
+            )
+
+            cursor.execute(
+                """
+                DELETE FROM document_chunks
+                WHERE document_id = %s
+                  AND workspace_id = %s
+                  AND user_id = %s;
+                """,
+                (
+                    document_id,
+                    actual_workspace_id,
+                    user_id,
+                ),
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO documents (
+                    workspace_id,
+                    user_id,
+                    title,
+                    content
+                )
+                VALUES (%s, %s, %s, %s)
+                RETURNING id;
+                """,
+                (
+                    actual_workspace_id,
+                    user_id,
+                    filename,
+                    full_text,
+                ),
+            )
+
+            document_id = int(cursor.fetchone()[0])
+
+        inserted_count = 0
+
+        for chunk in chunks:
+            content = str(chunk.get("text") or "").strip()
+
+            if not content:
+                continue
+
+            cursor.execute(
+                """
+                INSERT INTO document_chunks (
+                    document_id,
+                    workspace_id,
+                    user_id,
+                    chunk_index,
+                    content
+                )
+                VALUES (%s, %s, %s, %s, %s);
+                """,
+                (
+                    document_id,
+                    actual_workspace_id,
+                    user_id,
+                    chunk.get("chunk_index", inserted_count),
+                    content,
+                ),
+            )
+
+            inserted_count += 1
+
+        if inserted_count == 0:
+            raise ValueError("No non-empty document chunks were created.")
+
+        connection.commit()
+
+        # Generate embeddings using the canonical document embedding path.
+        embedded_chunk_count = embed_document_chunks(document_id)
+
+        if embedded_chunk_count != inserted_count:
+            raise RuntimeError(
+                "Document processing completed, but not all chunks received "
+                "RAG embeddings."
+            )
+
+        return {
+            "document_id": document_id,
+            "saved_chunk_count": inserted_count,
+            "embedded_chunk_count": embedded_chunk_count,
+            "workspace_id": actual_workspace_id,
+            "user_id": user_id,
+        }
+
+    except Exception:
+        connection.rollback()
+        raise
 
     finally:
         cursor.close()
         connection.close()
-
-    return save_embeddings_for_chunks(
-        chunks_for_embedding
-    )
 
 
 # =========================================================
@@ -438,45 +494,38 @@ def process_document(
     -> extraction
     -> cleaning
     -> chunking
-    -> database storage
+    -> production-schema document/chunk storage
+    -> RAG embedding generation
     """
 
-    # Extract text.
-    pages = extract_text(
-        file_path
-    )
+    pages = extract_text(file_path)
+    chunks = create_chunks(pages)
 
-    # Create chunks.
-    chunks = create_chunks(
-        pages
-    )
-
-    # Save chunks to PostgreSQL.
     saved_chunk_count = 0
     embedded_chunk_count = 0
+    document_id = None
 
     if file_id is not None:
-        saved_chunk_count = save_chunks_to_database(
+        storage_result = save_chunks_to_database(
             file_id=file_id,
             workspace_id=workspace_id,
-            chunks=chunks
+            chunks=chunks,
         )
 
-        embedded_chunk_count = embed_saved_chunks_for_file(
-            file_id=file_id
-        )
+        document_id = storage_result["document_id"]
+        saved_chunk_count = storage_result["saved_chunk_count"]
+        embedded_chunk_count = storage_result["embedded_chunk_count"]
 
     return {
         "file_id": file_id,
-        "filename": (
-            filename
-            or Path(file_path).name
-        ),
+        "document_id": document_id,
+        "filename": filename or Path(file_path).name,
         "pages": pages,
         "chunks": chunks,
         "page_count": len(pages),
         "chunk_count": len(chunks),
         "saved_chunk_count": saved_chunk_count,
         "embedded_chunk_count": embedded_chunk_count,
-        "success": True
+        "success": True,
     }
+
