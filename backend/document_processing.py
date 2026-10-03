@@ -346,6 +346,20 @@ def save_chunks_to_database(
 
             inserted_count += 1
 
+        # Ensure every processed chunk inherits the
+        # authenticated file owner's user_id.
+        cursor.execute(
+            """
+            UPDATE document_chunks dc
+            SET user_id = f.user_id
+            FROM files f
+            WHERE dc.file_id = f.id
+              AND dc.file_id = %s
+              AND dc.user_id IS NULL;
+            """,
+            (file_id,),
+        )
+
         connection.commit()
 
         return inserted_count
